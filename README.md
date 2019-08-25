@@ -1,5 +1,5 @@
 # PyFIT
-Read .FIT files from Garmin devices
+PyFIT is a library that allows reading .FIT files from Garmin devices into Python.
 
 
 ### How do I get started ###
@@ -9,4 +9,4 @@ Read .FIT files from Garmin devices
 
 
 ### Who do I talk to? ###
-* If you have any questions, please, feel free to reach out to me: Joan Puig <joan.puig@gmail.com>
+* If you have any questions, please, feel free to reach out to: Joan Puig <joan.puig@gmail.com>
