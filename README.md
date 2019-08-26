@@ -6,7 +6,7 @@ PyFIT is a library that allows reading .FIT files into Python.
 * First, you will need to download the FIT SDK file https://www.thisisant.com/resources/fit/
 * In the SDK zip file there is a Profile.xlsx that has the necessary information on how to generate the FIT message types
 * Generate the code by running scr_generate_code.py. It is important to adjust it to match your directory setup
-* You are now ready to go and read some FIT files. Take a look at scr_fit_reader for how to do that
+* You are now ready to go and read some FIT files. Take a look at scr_fit_reader.py for how to do that
 
 
 ### Under the hood ###
