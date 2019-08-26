@@ -2,8 +2,10 @@
 # See LICENSE for details
 
 
+import inspect
 import keyword
 from typing import Dict, List
+
 
 from FIT.profile import Profile
 from pathlib import Path
@@ -31,8 +33,6 @@ BASE_TYPE_MAP = {
 
 
 DEFAULT_UNIT_SYNONYMS = {
-    '% or bpm': 'percent_or_bpm',
-    '% or watts': 'percent_or_watts',
     '2 * cycles (steps)': 'two_cycles_steps',
     '100 * m': 'length_100_m',
     'm/s,\nm': 'm_per_s_and_m',
@@ -40,8 +40,7 @@ DEFAULT_UNIT_SYNONYMS = {
     'min': 'minutes',
     'deg/s': 'degrees/s',
 
-    'C': 'degrees_centigrade',
-    '%': 'percent',
+    'C': 'degrees_celsius',
     'if': 'intensity_factor',
     'tss': 'training_stress_score',
     'mmHg': 'mm_Hg',
@@ -182,8 +181,11 @@ class CodeGenerator:
             raise CodeGeneratorError('Synonyms for units not in the profile were provided {}'.format(', '.join(unnecessary_synonyms)))
         # Apply the synonyms
         units = {unit_synonyms.get(unit, unit) for unit in units}
+
         # Replace some illegal characters in the unit names
-        units = list({u.replace(' ', '').replace('^', '').replace('/', '_per_') for u in units})
+        cleaner = lambda u: u.replace(' ', '').replace('^', '').replace('/', '_per_').replace('%', 'percent')
+
+        units = list({cleaner(unit) for unit in units})
 
         units.sort(key=str.lower)
 
@@ -205,7 +207,8 @@ class CodeGenerator:
         cw.write('}')
         cw.new_line()
         cw.write('unit = unit_synonyms.get(unit, unit)')
-        cw.write("unit = unit.replace(' ', '').replace('^', '').replace('/', '_per_')")
+        cw.write(str(inspect.getsourcelines(cleaner)[0]).strip("['\\n']")[9:-3])
+        cw.write('unit = cleaner(unit)')
         cw.write('return Unit._value2member_map_.get(unit, Unit.invalid)')
         cw.unindent()
         cw.unindent()
