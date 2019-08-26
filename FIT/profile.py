@@ -1,3 +1,7 @@
+# Copyright 2019 Joan Puig
+# See LICENSE for details
+
+
 from dataclasses import dataclass
 from typing import List, Union
 
@@ -73,12 +77,12 @@ def split(raw_content):
     return split_content
 
 
-def parse_type(type):
-    return Type(type[0][0], type[0][1], [Value(*v[2:]) for v in type[1:]])
+def parse_type(type_data):
+    return Type(type_data[0][0], type_data[0][1], [Value(*v[2:]) for v in type_data[1:]])
 
 
-def parse_message(messages):
-    return Message(messages[0][0], [Field(*f[1:]) for f in messages[1:]])
+def parse_message(message_data):
+    return Message(message_data[0][0], [Field(*f[1:]) for f in message_data[1:]])
 
 
 def parse(file_name: str):
@@ -100,11 +104,11 @@ def parse(file_name: str):
     types_sheet = book.sheet_by_name('Types')
     raw_types = extract_data(types_sheet)
     split_types = split(raw_types[1:])
-    types = [parse_type(type) for type in split_types]
+    types = [parse_type(type_data) for type_data in split_types]
 
     messages_sheet = book.sheet_by_name('Messages')
     raw_messages = extract_data(messages_sheet)
     split_messages = split(raw_messages[1:])
-    messages = [parse_message(message) for message in split_messages]
+    messages = [parse_message(message_data) for message_data in split_messages]
 
     return Profile(types, messages)

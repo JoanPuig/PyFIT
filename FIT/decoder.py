@@ -1,13 +1,17 @@
+# Copyright 2019 Joan Puig
+# See LICENSE for details
+
+
 from dataclasses import dataclass
 from enum import Enum
-from typing import List, Dict, Any, Union
+from typing import List, Dict, Union
 
 from FIT.base_types import UnsignedInt8, UnsignedInt16, UnsignedInt32, UnsignedInt64
 
 import numpy as np
 
 
-def parse_UnsignedInt16(hex_str) -> UnsignedInt16:
+def parse_UnsignedInt16(hex_str: str) -> UnsignedInt16:
     return UnsignedInt16(int(hex_str, 16))
 
 
@@ -57,13 +61,11 @@ class CRCCalculator:
 
         tmp = CRCCalculator.CRC_TABLE[crc & CRCCalculator.x000F]  # tmp = crc_table[crc & 0xF];
         crc = (crc >> 4) & CRCCalculator.x0FFF  # crc = (crc >> 4) & 0x0FFF;
-        crc = crc ^ tmp ^ CRCCalculator.CRC_TABLE[
-            byte & CRCCalculator.x000F]  # crc = crc ^ tmp ^ crc_table[byte & 0xF];
+        crc = crc ^ tmp ^ CRCCalculator.CRC_TABLE[byte & CRCCalculator.x000F]  # crc = crc ^ tmp ^ crc_table[byte & 0xF];
 
         tmp = CRCCalculator.CRC_TABLE[crc & CRCCalculator.x000F]  # tmp = crc_table[crc & 0xF];
         crc = (crc >> 4) & CRCCalculator.x0FFF  # crc = (crc >> 4) & 0x0FFF;
-        crc = crc ^ tmp ^ CRCCalculator.CRC_TABLE[
-            (byte >> 4) & CRCCalculator.x000F]  # crc = crc ^ tmp ^ crc_table[(byte >> 4) & 0xF];
+        crc = crc ^ tmp ^ CRCCalculator.CRC_TABLE[(byte >> 4) & CRCCalculator.x000F]  # crc = crc ^ tmp ^ crc_table[(byte >> 4) & 0xF];
 
         self.current = crc
 
@@ -258,7 +260,7 @@ class Decoder:
         number = self.reader.read_byte()
         size = self.reader.read_byte()
         type_byte = self.reader.read_byte()
-        endian_ability = bit_get(type_byte, 8)
+        endian_ability = bit_get(type_byte, 8-1)
         base_type = type_byte & UnsignedInt8(31)  # 1st to 5th bits
         reserved_bits = type_byte & UnsignedInt8(96)  # 6th to 7th bits
 
@@ -298,9 +300,7 @@ class Decoder:
 
         fields = [self.decode_field(field_definition) for field_definition in message_definition.field_definitions]
         developer_fields = [self.decode_field(developer_field_definition) for developer_field_definition in message_definition.developer_field_definitions]
-        content = MessageContent(fields, developer_fields)
-
-        return content
+        return MessageContent(fields, developer_fields)
 
     def decode_record_with_normal_header(self, header) -> Record:
         header = self.decode_normal_record_header(header)

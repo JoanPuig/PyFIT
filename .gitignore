@@ -102,3 +102,6 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+/Profile.xlsx
+/scr_scratch.py
+/fit_examples/
