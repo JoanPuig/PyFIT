@@ -3,17 +3,17 @@
 
 
 from FIT.codegen import CodeWriter, CodeGenerator
-from FIT.profile import parse
+from FIT.profile import parse_sdk_zip
 
 
 def main():
     # This sample code shows how to read the Profile.xlsx file into a Profile object and generate the FIT.types file
 
     # Modify to fit your directory setup
-    profile_file = 'Profile.xlsx'
+    sdk_file = '/SDK/FitSDKRelease_Latest.zip'
     types_file = 'FIT/types.py'
 
-    profile = parse(profile_file)
+    profile = parse_sdk_zip(sdk_file)
 
     code_writer = CodeWriter()
     code_generator = CodeGenerator(code_writer, profile)

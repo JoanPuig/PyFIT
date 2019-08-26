@@ -3,7 +3,11 @@
 
 
 from dataclasses import dataclass
+from enum import Enum
 from typing import List, Union
+
+import zipfile
+import hashlib
 
 import xlrd
 
@@ -11,6 +15,18 @@ import xlrd
 class UnexpectedProfileContent(Exception):
     pass
 
+
+class ProfileVersion(Enum):
+    Version_20_96_00 = 209600
+
+    @staticmethod
+    def current():
+        return ProfileVersion.Version_20_96_00
+
+
+SDK_ZIP_SHA256 = {
+    'B0379726606A23105437A3C89B888E831ABEB9B95EDAD8DF1E8C9BAF93F3F8A4': ProfileVersion.Version_20_96_00
+}
 
 @dataclass
 class Value:
@@ -54,6 +70,7 @@ class MessageProfile:
 
 @dataclass
 class Profile:
+    version: ProfileVersion
     types: List[TypeProfile]
     messages: List[MessageProfile]
 
@@ -86,8 +103,37 @@ def parse_message(message_data):
     return MessageProfile(message_data[0][0], [FieldProfile(*f[1:]) for f in message_data[1:]])
 
 
-def parse(file_name: str):
-    book = xlrd.open_workbook(file_name)
+def sha256(file_name: str):
+    algo = hashlib.sha256()
+
+    with open(file_name, 'rb') as file:
+        while True:
+            chunk = file.read(algo.block_size)
+            if not chunk:
+                break
+            algo.update(chunk)
+
+    return algo.hexdigest().upper()
+
+
+def parse_sdk_zip(file_name: str) -> Profile:
+    file_hash = sha256(file_name)
+
+    if file_hash not in SDK_ZIP_SHA256:
+        raise UnexpectedProfileContent('The SHA of the input file {} does not match the known SHAs of any supported SDK versions. FYI, the latest supported version is: {}'.format(file_name, ProfileVersion.current().name))
+
+    version = SDK_ZIP_SHA256[file_hash]
+
+    zf = zipfile.ZipFile(file_name, 'r')
+    zip_file_content = zf.read('Profile.xlsx')
+    return parse_xlsx(zip_file_content, version)
+
+
+def parse_xlsx(file: str, version: ProfileVersion) -> Profile:
+    if type(file) == str:
+        book = xlrd.open_workbook(file)
+    else:
+        book = xlrd.open_workbook(file_contents=file)
 
     sheet_names = book.sheet_names()
 
@@ -99,7 +145,7 @@ def parse(file_name: str):
         else:
             raise UnexpectedProfileContent('Profile file does not contain a "{}" sheet'.format(expected_sheet))
 
-    if len(sheet_names) != 0:
+    if sheet_names:
         raise UnexpectedProfileContent('Profile file contains unexpected sheets: {}'.format(sheet_names))
 
     types_sheet = book.sheet_by_name('Types')
@@ -112,4 +158,4 @@ def parse(file_name: str):
     split_messages = split(raw_messages[1:])
     messages = [parse_message(message_data) for message_data in split_messages]
 
-    return Profile(types, messages)
+    return Profile(version, types, messages)
