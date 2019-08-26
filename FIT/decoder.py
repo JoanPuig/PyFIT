@@ -1,7 +1,6 @@
 # Copyright 2019 Joan Puig
 # See LICENSE for details
-
-
+from abc import ABC
 from dataclasses import dataclass
 from enum import Enum
 from typing import List, Dict, Union
@@ -138,16 +137,6 @@ class FieldDefinition:
 
 
 @dataclass
-class DeveloperField:
-    pass
-
-
-@dataclass
-class DeveloperFieldDefinition:
-    pass
-
-
-@dataclass
 class MessageDefinition(RecordContent):
     reserved_byte: UnsignedInt8
     architecture: Architecture
@@ -186,10 +175,10 @@ class File:
 
 
 class Decoder:
-    IS_NORMAL_HEADER_POSITION = 8-1
-    IS_DEFINITION_MESSAGE_POSITION = 7-1
-    HAS_DEVELOPER_DATA_POSITION = 6-1
-    RESERVED_BIT_POSITION = 5-1
+    IS_NORMAL_HEADER_POSITION = 8 - 1
+    IS_DEFINITION_MESSAGE_POSITION = 7 - 1
+    HAS_DEVELOPER_DATA_POSITION = 6 - 1
+    RESERVED_BIT_POSITION = 5 - 1
 
     reader: ByteReader
 
@@ -260,7 +249,7 @@ class Decoder:
         number = self.reader.read_byte()
         size = self.reader.read_byte()
         type_byte = self.reader.read_byte()
-        endian_ability = bit_get(type_byte, 8-1)
+        endian_ability = bit_get(type_byte, 8 - 1)
         base_type = type_byte & UnsignedInt8(31)  # 1st to 5th bits
         reserved_bits = type_byte & UnsignedInt8(96)  # 6th to 7th bits
 
@@ -328,3 +317,5 @@ class Decoder:
             raise FITFileFormatError('Invalid CRC. Expected: {}, computed: {}'.format(expected_crc, computed_crc))
 
         return expected_crc
+
+

@@ -21,11 +21,11 @@ class BaseType(ABC):
     pass
 
 
-class Enum(np.uint8, BaseType):
+class FITEnum(np.uint8, BaseType):
     metadata = TypeMetadata(0, False, int('0x00', 16), int('0xFF', 16), 1)
 
 
-class SingedInt8(np.int8, BaseType):
+class SignedInt8(np.int8, BaseType):
     metadata = TypeMetadata(1, False, int('0x01', 16), int('0x7F', 16), 1)
 
 

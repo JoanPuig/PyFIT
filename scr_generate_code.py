@@ -1,6 +1,8 @@
 # Copyright 2019 Joan Puig
 # See LICENSE for details
 
+
+from FIT.codegen import CodeWriter, CodeGenerator
 from FIT.profile import parse
 
 
@@ -13,7 +15,12 @@ def main():
 
     profile = parse(profile_file)
 
-    print(profile)
+    code_writer = CodeWriter()
+    code_generator = CodeGenerator(code_writer, profile)
+    code_generator.generate()
+
+    print(code_writer.content)
+    code_writer.write_to_file(types_file)
 
 
 if __name__ == "__main__":

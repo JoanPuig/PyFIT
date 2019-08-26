@@ -20,14 +20,15 @@ class Value:
 
 
 @dataclass
-class Type:
+class TypeProfile:
     name: str
     base_type: str
+    comment: str
     values: List[Value]
 
 
 @dataclass
-class Field:
+class FieldProfile:
     number: int
     name: str
     type: str
@@ -46,15 +47,15 @@ class Field:
 
 
 @dataclass
-class Message:
+class MessageProfile:
     name: str
-    fields: List[Field]
+    fields: List[FieldProfile]
 
 
 @dataclass
 class Profile:
-    types: List[Type]
-    messages: List[Message]
+    types: List[TypeProfile]
+    messages: List[MessageProfile]
 
 
 def extract_data(sheet):
@@ -78,11 +79,11 @@ def split(raw_content):
 
 
 def parse_type(type_data):
-    return Type(type_data[0][0], type_data[0][1], [Value(*v[2:]) for v in type_data[1:]])
+    return TypeProfile(type_data[0][0], type_data[0][1], type_data[0][4], [Value(*v[2:]) for v in type_data[1:]])
 
 
 def parse_message(message_data):
-    return Message(message_data[0][0], [Field(*f[1:]) for f in message_data[1:]])
+    return MessageProfile(message_data[0][0], [FieldProfile(*f[1:]) for f in message_data[1:]])
 
 
 def parse(file_name: str):

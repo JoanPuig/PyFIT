@@ -105,3 +105,4 @@ venv.bak/
 /Profile.xlsx
 /scr_scratch.py
 /fit_examples/
+/FIT/types.py

@@ -2,10 +2,81 @@
 # See LICENSE for details
 
 
-class CodeWriter:
-    class CodeWriterError(Exception):
-        pass
+import keyword
+from typing import Dict, List
 
+from FIT.profile import Profile
+from pathlib import Path
+
+
+BASE_TYPE_MAP = {
+    'sint8': 'SignedInt8',
+    'sint16': 'SignedInt16',
+    'sint32': 'SignedInt32',
+    'sint64': 'SignedInt64',
+    'uint8': 'UnsignedInt8',
+    'uint16': 'UnsignedInt16',
+    'uint32': 'UnsignedInt32',
+    'unit64': 'UnsignedInt64',
+    'uint8z': 'UnsignedInt8z',
+    'uint16z': 'UnsignedInt16z',
+    'uint32z': 'UnsignedInt32z',
+    'uint64z': 'UnsignedInt64z',
+    'enum': 'FITEnum',
+    'string': 'String',
+    'float32': 'Float32',
+    'float64': 'Float64',
+    'byte': 'Byte',
+}
+
+
+DEFAULT_UNIT_SYNONYMS = {
+    '% or bpm': 'percent_or_bpm',
+    '% or watts': 'percent_or_watts',
+    '2 * cycles (steps)': 'two_cycles_steps',
+    '100 * m': 'length_100_m',
+    'm/s,\nm': 'm_per_s_and_m',
+
+    'min': 'minutes',
+    'deg/s': 'degrees/s',
+
+    'C': 'degrees_centigrade',
+    '%': 'percent',
+    'if': 'intensity_factor',
+    'tss': 'training_stress_score',
+    'mmHg': 'mm_Hg',
+    '': 'dimensionless',
+}
+
+
+DEFAULT_INVALID_VALUE_NAME_IDENTIFIERS = {
+    'None': 'Null',
+    '4iiiis': 'Innovations4iiiis',
+    '1partcarbon': 'OnePartCarbon',
+    '3WayCalfRaise': 'ThreeWayCalfRaise',
+    '3WayWeightedCalfRaise': 'ThreeWayCalfRaise',
+    '3WaySingleLegCalfRaise': 'ThreeWaySingleLegCalfRaise',
+    '3WayWeightedSingleLegCalfRaise': 'ThreeWayWeightedSingleLegCalfRaise',
+    '45DegreeCableExternalRotation': 'FortyFiveDegreeCableExternalRotation',
+    '45DegreePlank': 'FortyFiveDegreePlank',
+    '90DegreeStaticHold': 'NinetyDegreeStaticHold',
+    '30DegreeLatPulldown': 'ThirtyDegreeLatPulldown',
+    '90DegreeCableExternalRotation': 'NinetyDegreeCableExternalRotation',
+}
+
+
+DEFAULT_FREE_RANGE_TYPES = [
+    'MessageIndex',
+    'UserLocalId',
+    'FitBaseUnit',
+]
+
+
+class CodeWriterError(Exception):
+    pass
+
+
+class CodeWriter:
     def __init__(self):
         self.indent_count = 0
         self.content = ''
@@ -13,34 +84,203 @@ class CodeWriter:
 
     def indent(self):
         if self.in_fragment:
-            raise CodeWriter.CodeWriterError('Cannot indent while writing a line fragment')
+            raise CodeWriterError('Cannot indent while writing a line fragment')
         self.indent_count = self.indent_count + 1
 
     def unindent(self):
         if self.in_fragment:
-            raise CodeWriter.CodeWriterError('Cannot unindent while writing a line fragment')
+            raise CodeWriterError('Cannot unindent while writing a line fragment')
         self.indent_count = self.indent_count - 1
 
-    def write(self, code, *args):
+    def write(self, code: str, *args):
         self.write_fragment(code, *args)
         self.new_line()
 
-    def new_line(self):
-        self.content = self.content + '\n'.format()
+    def new_line(self, lines: int = 1):
+        self.content = self.content + ('\n'*lines).format()
         self.in_fragment = False
 
-    def write_fragment(self, code, *args):
+    def write_fragment(self, code: str, *args):
+        if args:
+            code = code.format(*args)
+
         if self.in_fragment:
-            self.content = self.content + code.format(*args)
+            self.content = self.content + code
         else:
-            self.content = self.content + ('\t'*self.indent_count).format() + code.format(*args)
+            self.content = self.content + ('\t'*self.indent_count).format() + code
 
         self.in_fragment = True
 
-    def write_to_file(self, file_name):
+    def write_to_file(self, file_name: str):
         if self.in_fragment:
             self.new_line()
 
         with open(file_name, 'w') as file:
             file.write(self.content)
 
+
+class CodeGeneratorError(Exception):
+    pass
+
+
+class CodeGenerator:
+    def __init__(self, code_writer: CodeWriter, profile: Profile, unit_synonyms: Dict[str, str] = None, invalid_value_identifiers: Dict[str, str] = None, free_range_types: List[str] = None):
+        self.code_writer = code_writer
+        self.profile = profile
+
+        if unit_synonyms:
+            self.unit_synonyms = unit_synonyms
+        else:
+            self.unit_synonyms = DEFAULT_UNIT_SYNONYMS
+
+        if invalid_value_identifiers:
+            self.invalid_value_name_identifiers = invalid_value_identifiers
+        else:
+            self.invalid_value_name_identifiers = DEFAULT_INVALID_VALUE_NAME_IDENTIFIERS
+
+        if free_range_types:
+            self.free_range_types = free_range_types
+        else:
+            self.free_range_types = DEFAULT_FREE_RANGE_TYPES
+
+    def generate(self):
+        self.generate_header(self.code_writer)
+        self.code_writer.new_line(2)
+        CodeGenerator.generate_imports(self.code_writer)
+        self.code_writer.new_line(2)
+        CodeGenerator.generate_units(self.code_writer, self.profile, self.unit_synonyms)
+        self.code_writer.new_line(2)
+        CodeGenerator.generate_types(self.code_writer, self.profile, self.invalid_value_name_identifiers, self.free_range_types)
+        self.code_writer.new_line(2)
+        CodeGenerator.generate_messages(self.code_writer, self.profile)
+
+    def generate_header(self, cw: CodeWriter):
+        cw.write('# Copyright 2019 Joan Puig')
+        cw.write('# See LICENSE for details')
+        cw.new_line()
+        cw.write('# Generated by {} in {}', self.__class__.__name__, Path(__file__).name)
+
+    @staticmethod
+    def generate_imports(cw: CodeWriter):
+        cw.write('from enum import Enum, auto')
+        cw.new_line()
+        cw.write('from FIT.base_types import SignedInt8, SignedInt16, SignedInt32, SignedInt64')
+        cw.write('from FIT.base_types import UnsignedInt8, UnsignedInt16, UnsignedInt32, UnsignedInt64')
+        cw.write('from FIT.base_types import UnsignedInt8z, UnsignedInt16z, UnsignedInt32z, UnsignedInt64z')
+        cw.write('from FIT.base_types import FITEnum, String, Float32, Float64, Bool, Byte')
+
+
+    @staticmethod
+    def generate_units(cw: CodeWriter, profile: Profile, unit_synonyms: Dict[str, str]):
+        # Extract the units in all the fields of all the messages listed in the profile without repetitions
+        units = {field.units for message in profile.messages for field in message.fields}
+        units.add('invalid')
+
+        # The profile file provided in the SDK has inconsistent names for units, the following code cleans them up
+        unnecessary_synonyms = [key for key in unit_synonyms.keys() if key not in units]
+        if unnecessary_synonyms:
+            raise CodeGeneratorError('Synonyms for units not in the profile were provided {}'.format(', '.join(unnecessary_synonyms)))
+        # Apply the synonyms
+        units = {unit_synonyms.get(unit, unit) for unit in units}
+        # Replace some illegal characters in the unit names
+        units = list({u.replace(' ', '').replace('^', '').replace('/', '_per_') for u in units})
+
+        units.sort(key=str.lower)
+
+        cw.write('class Unit(Enum):')
+        cw.indent()
+        for unit in units:
+            CodeGenerator.check_valid_name(unit)
+            cw.write('{} = auto()'.format(unit))
+
+        cw.new_line()
+        cw.write('@staticmethod')
+        cw.write('def from_string(unit: str):')  # TODO add type hint
+        cw.indent()
+        cw.write('unit_synonyms = {')
+        cw.indent()
+        for (k, v) in unit_synonyms.items():
+            cw.write('\'{}\': \'{}\',', k.replace('\n', '\\n'), v)
+        cw.unindent()
+        cw.write('}')
+        cw.new_line()
+        cw.write('unit = unit_synonyms.get(unit, unit)')
+        cw.write("unit = unit.replace(' ', '').replace('^', '').replace('/', '_per_')")
+        cw.write('return Unit._value2member_map_.get(unit, Unit.invalid)')
+        cw.unindent()
+        cw.unindent()
+
+    @staticmethod
+    def capitalize_type_name(name: str) -> str:
+        return ''.join(c.capitalize() for c in name.split('_'))
+
+    @staticmethod
+    def check_valid_name(name: str) -> None:
+        if not name:
+            raise CodeGeneratorError('Name is empty')
+        if keyword.iskeyword(name):
+            raise CodeGeneratorError('Name {} is a keyword'.format(name))
+        if name[0].isdigit():
+            raise CodeGeneratorError('Name {} starts with a digit'.format(name))
+
+    @staticmethod
+    def generate_types(cw: CodeWriter, profile: Profile, invalid_value_name_identifiers: Dict[str, str], free_range_types):
+        for type_profile in profile.types:
+            type_name = CodeGenerator.capitalize_type_name(type_profile.name)
+            CodeGenerator.check_valid_name(type_name)
+
+            cw.write('# FIT type name: {}', type_profile.name)
+            if type_profile.comment:
+                cw.write('# {}', type_profile.comment)
+
+            has_named_values = len(type_profile.values) > 0
+            if not has_named_values:
+                cw.write('class {}({}):', type_name, BASE_TYPE_MAP[type_profile.base_type])
+                cw.indent()
+                cw.write('pass')
+
+            else:
+                if type_name in free_range_types:
+                    cw.write('class {}({}):', type_name, BASE_TYPE_MAP[type_profile.base_type])
+                else:
+                    cw.write('class {}(Enum):', type_name)
+
+                cw.indent()
+
+                resolved_types = []
+                for value in type_profile.values:
+                    value_name = CodeGenerator.capitalize_type_name(value.name)
+                    value_name = invalid_value_name_identifiers.get(value_name, value_name)
+                    CodeGenerator.check_valid_name(value_name)
+
+                    if type(value.value) == str:
+                        value_str = "'{}'".format(value.value)
+                    else:
+                        value_str = '{:d}'.format(int(value.value))
+
+                    resolved_types.append({
+                        'value_name': value_name,
+                        'base_type': BASE_TYPE_MAP[type_profile.base_type],
+                        'value_str': value_str,
+                        'original_value_name': value.name,
+                        'comment': value.comment}
+                    )
+
+                max_name_length = max([len(resolved_type['value_name']) for resolved_type in resolved_types])
+                max_value_length = max([len(resolved_type['value_str']) for resolved_type in resolved_types])
+                max_original_name_length = max([len(resolved_type['original_value_name']) for resolved_type in resolved_types])
+                fmt = '{:<' + str(max_name_length) + '} = {}({:>' + str(max_value_length) + '})  # {:<' + str(max_original_name_length) + '}'
+
+                for resolved_type in resolved_types:
+                    cw.write_fragment(fmt, resolved_type['value_name'], resolved_type['base_type'], resolved_type['value_str'], resolved_type['original_value_name'])
+                    if resolved_type['comment']:
+                        cw.write(' - {}', resolved_type['comment'])
+                    else:
+                        cw.write('')
+
+            cw.unindent()
+            cw.new_line(2)
+
+    @staticmethod
+    def generate_messages(cw: CodeWriter, profile: Profile):
+        pass
