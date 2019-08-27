@@ -27,8 +27,8 @@ We have access to the following devices for testing:
 In order to download all your FIT files in bulk from Garmin Connect:
 * Visit: https://www.garmin.com/en-GB/account/datamanagement/ 
 * Export your data
-* You will get an e-mail with a link to download a zip file with all your data in it. 
-* Open that zip file and navigate to \DI_CONNECT\DI-Connect-Fitness-Uploaded-Files you will find all your files there
+* You will get an e-mail with a link to download a zip file
+* Open that zip file and navigate to \DI_CONNECT\DI-Connect-Fitness-Uploaded-Files where you will find all your FIT files
 
 ### How to collaborate ###
 Here are a few ideas depending on your level of comfort with the code base:
