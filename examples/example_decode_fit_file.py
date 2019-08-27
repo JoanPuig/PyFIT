@@ -2,7 +2,7 @@
 # See LICENSE for details
 
 
-from FIT.decoder import ByteReader, Decoder
+from FIT.decoder import Decoder
 
 
 def main():
@@ -12,15 +12,7 @@ def main():
     # Modify to fit your directory setup
     file_name = './data/FIT/MY_ACTIVITY_FILE.fit'
 
-    # Reads the binary data of the .FIT file
-    file_bytes = open(file_name, "rb").read()
-
-    # Constructs a ByteReader and Decoder object
-    byte_reader = ByteReader(file_bytes)
-    decoder = Decoder(byte_reader)
-
-    # Decodes the file
-    file = decoder.decode_file()
+    file = Decoder.decode_fit_file(file_name)
 
     print(file)
 

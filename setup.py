@@ -15,5 +15,10 @@ setup(
     description='PyFIT is a library that allows reading .FIT files into Python',
     long_description=long_description,
     long_description_content_type="text/markdown",
-    packages=find_packages(), install_requires=['pytest']
+    packages=find_packages(),
+    install_requires=[
+        'pytest',
+        'numpy',
+        'xlrd',
+    ]
 )

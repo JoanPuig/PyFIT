@@ -2,7 +2,7 @@
 # See LICENSE for details
 
 
-from FIT.profile import parse_sdk_zip
+from FIT.profile import Profile
 
 
 def main():
@@ -11,7 +11,7 @@ def main():
     # Modify to fit your directory setup
     sdk_zip_file = './data/SDK/FitSDKRelease_Latest.zip'
 
-    profile = parse_sdk_zip(sdk_zip_file)
+    profile = Profile.parse_sdk_zip(sdk_zip_file)
 
     print(profile)
 

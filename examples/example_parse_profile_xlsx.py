@@ -2,7 +2,7 @@
 # See LICENSE for details
 
 
-from FIT.profile import parse_xlsx, ProfileVersion
+from FIT.profile import Profile, ProfileVersion
 
 
 def main():
@@ -12,7 +12,7 @@ def main():
     profile_file = './data/SDK/Profile.xlsx'
 
     # Ensure that the correct ProfileVersion is provided otherwise, code generation might fail
-    profile = parse_xlsx(profile_file, ProfileVersion.current())
+    profile = Profile.parse_xlsx(profile_file, ProfileVersion.current())
 
     print(profile)
 

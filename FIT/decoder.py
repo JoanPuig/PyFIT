@@ -319,4 +319,14 @@ class Decoder:
 
         return expected_crc
 
+    @staticmethod
+    def decode_fit_file(file_name) -> File:
+        # Reads the binary data of the .FIT file
+        file_bytes = open(file_name, "rb").read()
 
+        # Constructs a ByteReader and Decoder object
+        byte_reader = ByteReader(file_bytes)
+        decoder = Decoder(byte_reader)
+
+        # Decodes the file
+        return decoder.decode_file()
