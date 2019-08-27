@@ -9,7 +9,7 @@ def main():
     # This sample code shows how to read the Profile.xlsx (found inside the SDK zip file) file into a Profile object
 
     # Modify to fit your directory setup
-    profile_file = '../data/SDK/Profile.xlsx'
+    profile_file = './data/SDK/Profile.xlsx'
 
     # Ensure that the correct ProfileVersion is provided otherwise, code generation might fail
     profile = parse_xlsx(profile_file, ProfileVersion.current())

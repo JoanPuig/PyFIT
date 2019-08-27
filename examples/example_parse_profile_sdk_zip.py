@@ -9,7 +9,7 @@ def main():
     # This sample code shows how to read a Profile object from the SDK zip file
 
     # Modify to fit your directory setup
-    sdk_zip_file = '../data/SDK/FitSDKRelease_Latest.zip'
+    sdk_zip_file = './data/SDK/FitSDKRelease_Latest.zip'
 
     profile = parse_sdk_zip(sdk_zip_file)
 
