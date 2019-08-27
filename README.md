@@ -41,5 +41,5 @@ Here are a few ideas depending on your level of comfort with the code base:
 * If you have any questions, please, feel free to reach out to: Joan Puig at <joan.puig@gmail.com>
 
 
-
-Copyright 2019 Joan Puig. See LICENSE for details
+### Copyright ###
+Copyright 2019 Joan Puig. See LICENSE for details.
