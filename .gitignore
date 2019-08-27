@@ -103,6 +103,5 @@ venv.bak/
 # mypy
 .mypy_cache/
 /scr_scratch.py
-/fit_examples/
+/data/
 /FIT/types.py
-/SDK/

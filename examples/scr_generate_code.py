@@ -10,8 +10,8 @@ def main():
     # This sample code shows how to read the Profile.xlsx file into a Profile object and generate the FIT.types file
 
     # Modify to fit your directory setup
-    sdk_file = './SDK/FitSDKRelease_Latest.zip'
-    types_file = './FIT/types.py'
+    sdk_file = '../data/SDK/FitSDKRelease_Latest.zip'
+    types_file = '../FIT/types.py'
 
     profile = parse_sdk_zip(sdk_file)
 

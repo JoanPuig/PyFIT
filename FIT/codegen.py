@@ -183,7 +183,7 @@ class CodeGenerator:
         units = {unit_synonyms.get(unit, unit) for unit in units}
 
         # Replace some illegal characters in the unit names
-        cleaner = lambda u: u.replace(' ', '').replace('^', '').replace('/', '_per_').replace('%', 'percent')
+        cleaner = lambda u: u.replace(' ', '_').replace('^', '').replace('/', '_per_').replace('%', 'percent')
 
         units = list({cleaner(unit) for unit in units})
 

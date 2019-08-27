@@ -1,6 +1,7 @@
 # Copyright 2019 Joan Puig
 # See LICENSE for details
-from abc import ABC
+
+
 from dataclasses import dataclass
 from enum import Enum
 from typing import List, Dict, Union
