@@ -13,7 +13,7 @@ def main():
     sdk_file = './data/SDK/FitSDKRelease_Latest.zip'
     types_file = './FIT/types.py'
 
-    profile = Profile.parse_sdk_zip(sdk_file)
+    profile = Profile.from_sdk_zip(sdk_file)
 
     # This will generate the code and print it
     print(CodeGenerator.generate(profile))

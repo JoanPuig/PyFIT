@@ -146,7 +146,7 @@ class CodeGenerator:
         else:
             self.free_range_types = DEFAULT_FREE_RANGE_TYPES
 
-    def generate_all(self):
+    def generate_full(self):
         self.generate_header()
         self.code_writer.new_line(2)
         self.generate_imports()
@@ -341,7 +341,7 @@ class CodeGenerator:
     @staticmethod
     def generate(profile: Profile, types_file: str = None, **kwargs) -> str:
         code_generator = CodeGenerator(profile, **kwargs)
-        code_generator.generate_all()
+        code_generator.generate_full()
 
         if types_file:
             code_generator.code_writer.write_to_file(types_file)

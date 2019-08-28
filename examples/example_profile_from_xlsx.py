@@ -12,7 +12,7 @@ def main():
     profile_file = './data/SDK/Profile.xlsx'
 
     # Ensure that the correct ProfileVersion is provided otherwise, code generation might fail
-    profile = Profile.parse_xlsx(profile_file, ProfileVersion.current())
+    profile = Profile.from_xlsx(profile_file, ProfileVersion.current())
 
     print(profile)
 

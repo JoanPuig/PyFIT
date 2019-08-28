@@ -29,10 +29,3 @@ class Message(ABC):
     developer_fields: List[DeveloperField]
     undocumented_fields: List[UndocumentedField]
 
-
-class MessageDecoder:
-    def __init__(self, file: File):
-        self.file = file
-
-    def decode_messages(self) -> List[Message]:
-        pass

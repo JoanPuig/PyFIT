@@ -123,7 +123,7 @@ class Profile:
         return algo.hexdigest().upper()
 
     @staticmethod
-    def parse_sdk_zip(file_name: str):  # TODO type check  -> Profile:
+    def from_sdk_zip(file_name: str):  # TODO type check  -> Profile:
         file_hash = Profile.sha256(file_name)
 
         if file_hash not in SDK_ZIP_SHA256:
@@ -133,10 +133,10 @@ class Profile:
 
         zf = zipfile.ZipFile(file_name, 'r')
         zip_file_content = zf.read('Profile.xlsx')
-        return Profile.parse_xlsx(zip_file_content, version)
+        return Profile.from_xlsx(zip_file_content, version)
 
     @staticmethod
-    def parse_xlsx(file: str, version: ProfileVersion):  # TODO type check -> Profile:
+    def from_xlsx(file: str, version: ProfileVersion):  # TODO type check -> Profile:
         if type(file) == str:
             book = xlrd.open_workbook(file)
         else:
