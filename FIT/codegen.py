@@ -166,6 +166,7 @@ class CodeGenerator:
 
     def generate_imports(self):
         cw = self.code_writer
+        cw.write('from typing import List')
         cw.write('from enum import Enum, auto')
         cw.new_line()
         cw.write('from FIT.base_types import SignedInt8, SignedInt16, SignedInt32, SignedInt64')
@@ -245,7 +246,7 @@ class CodeGenerator:
 
                 cw.indent()
 
-                resolved_types = []
+                resolved_values = []
                 for value in type_profile.values:
                     value_name = CodeGenerator.capitalize_type_name(value.name)
                     value_name = self.invalid_value_name_identifiers.get(value_name, value_name)
@@ -256,7 +257,7 @@ class CodeGenerator:
                     else:
                         value_str = '{:d}'.format(int(value.value))
 
-                    resolved_types.append({
+                    resolved_values.append({
                         'value_name': value_name,
                         'base_type': BASE_TYPE_MAP[type_profile.base_type],
                         'value_str': value_str,
@@ -264,15 +265,15 @@ class CodeGenerator:
                         'comment': value.comment}
                     )
 
-                max_name_length = max([len(resolved_type['value_name']) for resolved_type in resolved_types])
-                max_value_length = max([len(resolved_type['value_str']) for resolved_type in resolved_types])
-                max_original_name_length = max([len(resolved_type['original_value_name']) for resolved_type in resolved_types])
+                max_name_length = max([len(resolved_value['value_name']) for resolved_value in resolved_values])
+                max_value_length = max([len(resolved_value['value_str']) for resolved_value in resolved_values])
+                max_original_name_length = max([len(resolved_value['original_value_name']) for resolved_value in resolved_values])
                 fmt = '{:<' + str(max_name_length) + '} = {}({:>' + str(max_value_length) + '})  # {:<' + str(max_original_name_length) + '}'
 
-                for resolved_type in resolved_types:
-                    cw.write_fragment(fmt, resolved_type['value_name'], resolved_type['base_type'], resolved_type['value_str'], resolved_type['original_value_name'])
-                    if resolved_type['comment']:
-                        cw.write(' - {}', resolved_type['comment'])
+                for resolved_value in resolved_values:
+                    cw.write_fragment(fmt, resolved_value['value_name'], resolved_value['base_type'], resolved_value['value_str'], resolved_value['original_value_name'])
+                    if resolved_value['comment']:
+                        cw.write(' - {}', resolved_value['comment'])
                     else:
                         cw.write('')
 
@@ -282,6 +283,47 @@ class CodeGenerator:
     def generate_messages(self):
         cw = self.code_writer
         messages = self.profile.messages
+
+        for message in messages:
+            name = CodeGenerator.capitalize_type_name(message.name)
+            cw.write('@dataclass')
+            cw.write('# FIT message name: {}', message.name)
+            cw.write('class {}(Message):', name)
+            cw.indent()
+
+            resolved_fields = []
+            for field in message.fields:
+                resolved_field = {
+                    'name': field.name,
+                    'type': CodeGenerator.capitalize_type_name(BASE_TYPE_MAP.get(field.type, field.type)),
+                    'comment': field.comment,
+                    'is_scalar': not field.array,
+                }
+
+                if not resolved_field['is_scalar']:
+                    resolved_field['type'] = 'List[{}]'.format(resolved_field['type'])
+
+                resolved_fields.append(resolved_field)
+
+            max_name_length = max([len(resolved_field['name']) for resolved_field in resolved_fields])
+            max_type_length = max([len(resolved_field['type']) for resolved_field in resolved_fields])
+
+            for resolved_field in resolved_fields:
+                cw.write_fragment('{:<' + str(max_name_length) + '} : {:<' + str(max_type_length) + '}', resolved_field['name'], resolved_field['type'])
+                if resolved_field['comment']:
+                    cw.write('    # {}', resolved_field['comment'])
+                else:
+                    cw.write('')
+
+            cw.new_line()
+            cw.write('@staticmethod')
+            cw.write('def from_record(record: Record) -> {}:', name)
+            cw.indent()
+            cw.write('pass')
+            cw.unindent()
+            cw.unindent()
+
+            cw.new_line(2)
 
     @staticmethod
     def capitalize_type_name(name: str) -> str:

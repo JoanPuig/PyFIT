@@ -21,5 +21,6 @@ def main():
     # If you actually want to write the file to disk
     CodeGenerator.generate(profile, types_file)
 
+
 if __name__ == "__main__":
     main()

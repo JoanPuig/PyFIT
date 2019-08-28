@@ -18,7 +18,7 @@ def files(files_dir: str, extension: str) -> List[str]:
 
 
 def fit_files(fit_files_dir: str) -> List[str]:
-    return files('.fit')
+    return files(fit_files_dir, '.fit')
 
 
 def all_fit_files() -> List[str]:
