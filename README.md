@@ -11,8 +11,8 @@ PyFIT is a library that allows reading .FIT files into Python.
 
 ### Under the hood ###
 * FIT files are a binary format specified by Garmin, see the PDF documents in the FIT SDK for details
-* The low lever layer will read the bytes, into a File object (see [scr_decode_fit_file.py](examples/scr_decode_fit_file.py))
-* In order to help give meaning to the data, Garmin provides the Profiles.xlsx file, which explains the messages (see [scr_profile_from_sdk_zip.py](examples/scr_profile_from_sdk_zip.py) or [scr_profile_from_xlsx.py](examples/scr_profile_from_xlsx.py))
+* The low lever layer will read the bytes, into a File object (see [example_decode_fit_file.py](examples/example_decode_fit_file.py))
+* In order to help give meaning to the data, Garmin provides the Profiles.xlsx file, which explains the messages (see [example_profile_from_sdk_zip.py](examples/example_profile_from_sdk_zip.py) or [example_profile_from_xlsx.py](examples/example_profile_from_xlsx.py))
 * A code generator is used to generate classes for each one of this message types [example_generate_code.py](examples/example_generate_code.py)
 
 
