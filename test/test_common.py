@@ -5,6 +5,7 @@
 import os
 from typing import List
 
+
 # Modify to fit your directory setup
 FIT_FILES_PATH = './data/FIT/'
 
@@ -27,3 +28,6 @@ def all_fit_files() -> List[str]:
 
 def sample_fit_files() -> List[str]:
     return fit_files(FIT_FILES_PATH + 'sample/')
+
+def expected_fail_fit_files() -> List[str]:
+    return fit_files(FIT_FILES_PATH + 'expected_fail/')

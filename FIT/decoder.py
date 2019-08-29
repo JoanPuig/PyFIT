@@ -4,15 +4,16 @@
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import List, Dict, Union
+from typing import List, Dict, Union, Optional
 
-from FIT.base_types import UnsignedInt8, UnsignedInt16, UnsignedInt32, UnsignedInt64
+from FIT.base_types import BaseType, UnsignedInt8, UnsignedInt16, UnsignedInt32, UnsignedInt64, BASE_TYPE_NUMBER_TO_CLASS
 
 import numpy as np
 
 
-def parse_UnsignedInt16(hex_str: str) -> UnsignedInt16:
-    return UnsignedInt16(int(hex_str, 16))
+TIMESTAMP_FIELD_NUMBER = 253
+MESSAGE_INDEX_FIELD_NUMBER = 254
+PART_INDEX_FIELD_NUMBER = 250
 
 
 def bit_get(byte: UnsignedInt8, position: int) -> bool:
@@ -29,26 +30,26 @@ class UnsupportedFITFeature(Exception):
 
 class CRCCalculator:
     CRC_TABLE = [
-        parse_UnsignedInt16('0000'),
-        parse_UnsignedInt16('CC01'),
-        parse_UnsignedInt16('D801'),
-        parse_UnsignedInt16('1400'),
-        parse_UnsignedInt16('F001'),
-        parse_UnsignedInt16('3C00'),
-        parse_UnsignedInt16('2800'),
-        parse_UnsignedInt16('E401'),
-        parse_UnsignedInt16('A001'),
-        parse_UnsignedInt16('6C00'),
-        parse_UnsignedInt16('7800'),
-        parse_UnsignedInt16('B401'),
-        parse_UnsignedInt16('5000'),
-        parse_UnsignedInt16('9C01'),
-        parse_UnsignedInt16('8801'),
-        parse_UnsignedInt16('4400'),
+        UnsignedInt16(0x0000),
+        UnsignedInt16(0xCC01),
+        UnsignedInt16(0xD801),
+        UnsignedInt16(0x1400),
+        UnsignedInt16(0xF001),
+        UnsignedInt16(0x3C00),
+        UnsignedInt16(0x2800),
+        UnsignedInt16(0xE401),
+        UnsignedInt16(0xA001),
+        UnsignedInt16(0x6C00),
+        UnsignedInt16(0x7800),
+        UnsignedInt16(0xB401),
+        UnsignedInt16(0x5000),
+        UnsignedInt16(0x9C01),
+        UnsignedInt16(0x8801),
+        UnsignedInt16(0x4400),
     ]
 
-    x000F = parse_UnsignedInt16('000F')
-    x0FFF = parse_UnsignedInt16('0FFF')
+    x000F = UnsignedInt16(0x000F)
+    x0FFF = UnsignedInt16(0x0FFF)
 
     def __init__(self):
         self.current = UnsignedInt16(0)
@@ -75,12 +76,15 @@ class ByteReader:
     crc_calculator: CRCCalculator
     raw_bytes: Union[bytearray, bytes]
 
-    def __init__(self, raw_bytes: Union[bytearray, bytes]):
+    def __init__(self, raw_bytes: bytes):
         self.bytes_read = 0
         self.raw_bytes = raw_bytes
         self.crc_calculator = CRCCalculator()
 
     def read_byte(self) -> UnsignedInt8:
+        if self.bytes_left() == 0:
+            raise FITFileFormatError('Unexpected end of file encountered')
+
         byte = UnsignedInt8(self.raw_bytes[self.bytes_read])
         self.bytes_read = self.bytes_read + 1
         self.crc_calculator.new_byte(byte)
@@ -95,6 +99,9 @@ class ByteReader:
     def read_octo_byte(self) -> UnsignedInt32:
         return UnsignedInt64(np.array([self.read_byte() for _ in range(0, 8)]).view(UnsignedInt64)[0])
 
+    def read_bytes(self, count: int) -> bytes:
+        return bytes([self.read_byte() for _ in range(0, count)])
+
     def bytes_left(self):
         return len(self.raw_bytes) - self.bytes_read
 
@@ -106,16 +113,21 @@ class Architecture(Enum):
 
 @dataclass
 class RecordHeader:
-    pass
+    is_normal_header: bool
+    is_definition_message: bool
+    has_developer_data: bool
+    local_message_type: UnsignedInt8
 
 
 @dataclass
 class NormalRecordHeader(RecordHeader):
-    is_normal_header: bool
-    is_definition_message: bool
-    has_developer_data: bool
-    reserved_bit: bool
-    local_message_type: UnsignedInt8
+    pass
+
+
+@dataclass
+class CompressedTimestampRecordHeader(RecordHeader):
+    time_offset: UnsignedInt8
+    previous_Timestamp: UnsignedInt32
 
 
 @dataclass
@@ -125,7 +137,7 @@ class RecordContent:
 
 @dataclass
 class Field:
-    bytes: bytearray
+    value: BaseType
 
 
 @dataclass
@@ -176,18 +188,20 @@ class File:
 
 
 class Decoder:
-    IS_NORMAL_HEADER_POSITION = 8 - 1
+    IS_COMPRESSED_TIMESTAMP_HEADER_POSITION = 8 - 1
     IS_DEFINITION_MESSAGE_POSITION = 7 - 1
     HAS_DEVELOPER_DATA_POSITION = 6 - 1
     RESERVED_BIT_POSITION = 5 - 1
 
     reader: ByteReader
+    most_recent_timestamp: Optional[UnsignedInt32]
 
     message_definitions: Dict[int, MessageDefinition]
 
     def __init__(self, reader: ByteReader):
         self.reader = reader
         self.message_definitions = {}
+        self.most_recent_timestamp = None
 
     def decode_file(self) -> File:
         header = self.decode_file_header()
@@ -227,12 +241,19 @@ class Decoder:
 
     def decode_record(self) -> Record:
         header_byte = self.reader.read_byte()
-        is_normal_header = not bit_get(header_byte, Decoder.IS_NORMAL_HEADER_POSITION)
+        is_compressed_timestamp_header = bit_get(header_byte, Decoder.IS_COMPRESSED_TIMESTAMP_HEADER_POSITION)
 
-        if is_normal_header:
-            return self.decode_record_with_normal_header(header_byte)
+        if is_compressed_timestamp_header:
+            header = self.decode_compressed_timestamp_record_header(header_byte)
         else:
-            return self.decode_record_with_compressed_timestamp_header(header_byte)
+            header = self.decode_normal_record_header(header_byte)
+
+        if header.is_definition_message:
+            content = self.decode_message_definition(header)
+        else:
+            content = self.decode_message_content(header)
+
+        return Record(header, content)
 
     def decode_normal_record_header(self, header: UnsignedInt8) -> NormalRecordHeader:
         is_definition_message = bit_get(header, Decoder.IS_DEFINITION_MESSAGE_POSITION)
@@ -244,7 +265,12 @@ class Decoder:
 
         local_message_type = header & UnsignedInt8(15)  # 1st to 4th bits
 
-        return NormalRecordHeader(True, is_definition_message, has_developer_data, reserved_bit, local_message_type)
+        return NormalRecordHeader(True, is_definition_message, has_developer_data, local_message_type)
+
+    def decode_compressed_timestamp_record_header(self, header_byte: UnsignedInt8) -> CompressedTimestampRecordHeader:
+        local_message_type = (header_byte >> 5) & 0x3  # 5th to 7th bits
+        time_offset = header_byte & 0x1F  # 1st to 4th bits
+        return CompressedTimestampRecordHeader(False, False, False, local_message_type, time_offset, self.most_recent_timestamp)
 
     def decode_field_definition(self) -> FieldDefinition:
         number = self.reader.read_byte()
@@ -279,8 +305,25 @@ class Decoder:
         return definition
 
     def decode_field(self, field_definition: FieldDefinition) -> Field:
-        raw_bytes = [self.reader.read_byte() for _ in range(0, field_definition.size)]
-        return Field(bytearray(raw_bytes))
+        raw_bytes = self.reader.read_bytes(field_definition.size)
+
+        type_class = BASE_TYPE_NUMBER_TO_CLASS[field_definition.base_type]
+        decoded_value = type_class.from_bytes(raw_bytes)
+
+        if field_definition.number == MESSAGE_INDEX_FIELD_NUMBER:
+            if field_definition.base_type != UnsignedInt16.metadata.base_type_number:
+                raise FITFileFormatError('Message Index field number {} is expected to be of type {}, {} found', MESSAGE_INDEX_FIELD_NUMBER, UnsignedInt16.__name__, type_class.__name__)
+
+        if field_definition.number == PART_INDEX_FIELD_NUMBER:
+            if field_definition.base_type != UnsignedInt32.metadata.base_type_number:
+                raise FITFileFormatError('Part Index field number {} is expected to be of type {}, {} found', MESSAGE_INDEX_FIELD_NUMBER, UnsignedInt32.__name__, type_class.__name__)
+
+        if field_definition.number == TIMESTAMP_FIELD_NUMBER:
+            if field_definition.base_type != UnsignedInt32.metadata.base_type_number:
+                raise FITFileFormatError('Timestamp field number {} is expected to be of type {}, {} found', TIMESTAMP_FIELD_NUMBER, UnsignedInt32.__name__, type_class.__name__)
+            self.most_recent_timestamp = decoded_value
+
+        return Field(decoded_value)
 
     def decode_message_content(self, header: NormalRecordHeader) -> MessageContent:
         message_definition = self.message_definitions.get(header.local_message_type)
@@ -291,19 +334,6 @@ class Decoder:
         fields = [self.decode_field(field_definition) for field_definition in message_definition.field_definitions]
         developer_fields = [self.decode_field(developer_field_definition) for developer_field_definition in message_definition.developer_field_definitions]
         return MessageContent(fields, developer_fields)
-
-    def decode_record_with_normal_header(self, header) -> Record:
-        header = self.decode_normal_record_header(header)
-
-        if header.is_definition_message:
-            content = self.decode_message_definition(header)
-        else:
-            content = self.decode_message_content(header)
-
-        return Record(header, content)
-
-    def decode_record_with_compressed_timestamp_header(self, header) -> Record:
-        raise UnsupportedFITFeature('Compressed timestamp records are not supported')
 
     def decode_crc(self, allow_zero) -> UnsignedInt16:
         computed_crc = self.reader.crc_calculator.current

@@ -9,27 +9,7 @@ from typing import Dict, List
 
 from FIT.profile import Profile
 from pathlib import Path
-
-
-BASE_TYPE_MAP = {
-    'sint8': 'SignedInt8',
-    'sint16': 'SignedInt16',
-    'sint32': 'SignedInt32',
-    'sint64': 'SignedInt64',
-    'uint8': 'UnsignedInt8',
-    'uint16': 'UnsignedInt16',
-    'uint32': 'UnsignedInt32',
-    'unit64': 'UnsignedInt64',
-    'uint8z': 'UnsignedInt8z',
-    'uint16z': 'UnsignedInt16z',
-    'uint32z': 'UnsignedInt32z',
-    'uint64z': 'UnsignedInt64z',
-    'enum': 'FITEnum',
-    'string': 'String',
-    'float32': 'Float32',
-    'float64': 'Float64',
-    'byte': 'Byte',
-}
+from FIT.base_types import BASE_TYPE_NAME_MAP
 
 
 DEFAULT_UNIT_SYNONYMS = {
@@ -68,6 +48,9 @@ DEFAULT_FREE_RANGE_TYPES = [
     'MessageIndex',
     'UserLocalId',
     'FitBaseUnit',
+    'DateTime',
+    'LocalDateTime',
+    'DeviceIndex'
 ]
 
 
@@ -172,7 +155,7 @@ class CodeGenerator:
         cw.write('from FIT.base_types import SignedInt8, SignedInt16, SignedInt32, SignedInt64')
         cw.write('from FIT.base_types import UnsignedInt8, UnsignedInt16, UnsignedInt32, UnsignedInt64')
         cw.write('from FIT.base_types import UnsignedInt8z, UnsignedInt16z, UnsignedInt32z, UnsignedInt64z')
-        cw.write('from FIT.base_types import FITEnum, String, Float32, Float64, Bool, Byte')
+        cw.write('from FIT.base_types import FITEnum, String, Float32, Float64, Byte')
 
     def generate_units(self):
         cw = self.code_writer
@@ -234,13 +217,13 @@ class CodeGenerator:
 
             has_named_values = len(type_profile.values) > 0
             if not has_named_values:
-                cw.write('class {}({}):', type_name, BASE_TYPE_MAP[type_profile.base_type])
+                cw.write('class {}({}):', type_name, BASE_TYPE_NAME_MAP[type_profile.base_type])
                 cw.indent()
                 cw.write('pass')
 
             else:
                 if type_name in self.free_range_types:
-                    cw.write('class {}({}):', type_name, BASE_TYPE_MAP[type_profile.base_type])
+                    cw.write('class {}({}):', type_name, BASE_TYPE_NAME_MAP[type_profile.base_type])
                 else:
                     cw.write('class {}(Enum):', type_name)
 
@@ -259,7 +242,7 @@ class CodeGenerator:
 
                     resolved_values.append({
                         'value_name': value_name,
-                        'base_type': BASE_TYPE_MAP[type_profile.base_type],
+                        'base_type': BASE_TYPE_NAME_MAP[type_profile.base_type],
                         'value_str': value_str,
                         'original_value_name': value.name,
                         'comment': value.comment}
@@ -295,7 +278,7 @@ class CodeGenerator:
             for field in message.fields:
                 resolved_field = {
                     'name': field.name,
-                    'type': CodeGenerator.capitalize_type_name(BASE_TYPE_MAP.get(field.type, field.type)),
+                    'type': CodeGenerator.capitalize_type_name(BASE_TYPE_NAME_MAP.get(field.type, field.type)),
                     'comment': field.comment,
                     'is_scalar': not field.array,
                 }
@@ -309,6 +292,7 @@ class CodeGenerator:
             max_type_length = max([len(resolved_field['type']) for resolved_field in resolved_fields])
 
             for resolved_field in resolved_fields:
+                CodeGenerator.check_valid_name(resolved_field['name'])
                 cw.write_fragment('{:<' + str(max_name_length) + '} : {:<' + str(max_type_length) + '}', resolved_field['name'], resolved_field['type'])
                 if resolved_field['comment']:
                     cw.write('    # {}', resolved_field['comment'])
