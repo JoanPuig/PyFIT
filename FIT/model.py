@@ -113,5 +113,5 @@ class Message(ABC):
 class UndocumentedMessage(Message):
     @staticmethod
     def from_record(record: Record):
-        return UndocumentedMessage()
+        return UndocumentedMessage(None, None)
 

@@ -3,6 +3,7 @@
 
 
 import importlib
+import warnings
 from typing import List, Dict, Union, Optional
 
 from FIT.base_types import UnsignedInt8, UnsignedInt16, UnsignedInt32, UnsignedInt64, BASE_TYPE_NUMBER_TO_CLASS
@@ -12,6 +13,10 @@ import numpy as np
 
 
 class FITFileFormatError(Exception):
+    pass
+
+
+class FITFileFormatWarning(Warning):
     pass
 
 
@@ -280,7 +285,7 @@ class Decoder:
         return decoder.decode_file()
 
     @staticmethod
-    def decode_fit_messages(file_name: str, error_on_undocumented_message: bool = True) -> List[Message]:
+    def decode_fit_messages(file_name: str, error_on_undocumented_message: bool = False) -> List[Message]:
         # Reads the FIT file
         file = Decoder.decode_fit_file(file_name)
 
@@ -294,16 +299,18 @@ class Decoder:
                 if global_message_number in MesgNum._value2member_map_:
                     definitions[record.header.local_message_type] = MesgNum(global_message_number)
                 else:
+                    error_message = 'Definition references MesgNum {} which is not documented'.format(global_message_number)
                     if error_on_undocumented_message:
-                        raise FITFileFormatError('Definition references MesgNum {} which is not documented', global_message_number)
+                        raise FITFileFormatError(error_message)
                     else:
+                        warnings.warn(error_message, FITFileFormatWarning)
                         definitions[record.header.local_message_type] = None
 
             else:
                 local_message_type = record.header.local_message_type
 
                 if local_message_type not in definitions:
-                    raise FITFileFormatError('Local message type {} has not been previously defined', local_message_type)
+                    raise FITFileFormatError('Local message type {} has not been previously defined'.format(local_message_type))
 
                 global_message_number = definitions[local_message_type]
 

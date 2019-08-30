@@ -291,7 +291,7 @@ class CodeGenerator:
                 if field.type == 'bool':
                     resolved_field['type'] = 'bool'
 
-                if not resolved_field['is_scalar']:
+                if not resolved_field['is_scalar'] and not resolved_field['type'] == 'String':
                     resolved_field['type'] = 'List[{}]'.format(resolved_field['type'])
 
                 resolved_fields.append(resolved_field)
@@ -316,7 +316,11 @@ class CodeGenerator:
             # cw.write('def from_record(record: Record) -> {}:', message_name) TODO type checking
             cw.write('def from_record(record: Record):')
             cw.indent()
-            cw.write('return {}()', message_name)
+            cw.write('developer_fields = None')
+            cw.write('undocumented_fields = None')
+            for resolved_field in resolved_fields:
+                cw.write('{} = None', resolved_field['name'])
+            cw.write('return {}({})', message_name, ', '.join(['developer_fields', 'undocumented_fields'] + [resolved_field['name'] for resolved_field in resolved_fields]))
             cw.unindent()
             cw.unindent()
 
