@@ -2,22 +2,12 @@
 # See LICENSE for details
 
 
-from dataclasses import dataclass
-from enum import Enum
 from typing import List, Dict, Union, Optional
 
-from FIT.base_types import BaseType, UnsignedInt8, UnsignedInt16, UnsignedInt32, UnsignedInt64, BASE_TYPE_NUMBER_TO_CLASS
+from FIT.base_types import UnsignedInt8, UnsignedInt16, UnsignedInt32, UnsignedInt64, BASE_TYPE_NUMBER_TO_CLASS
+from FIT.model import MessageDefinition, File, FileHeader, Record, NormalRecordHeader, CompressedTimestampRecordHeader, FieldDefinition, Architecture, RecordField, MessageContent, Message
 
 import numpy as np
-
-
-TIMESTAMP_FIELD_NUMBER = 253
-MESSAGE_INDEX_FIELD_NUMBER = 254
-PART_INDEX_FIELD_NUMBER = 250
-
-
-def bit_get(byte: UnsignedInt8, position: int) -> bool:
-    return byte & (1 << position) > 0
 
 
 class FITFileFormatError(Exception):
@@ -106,88 +96,11 @@ class ByteReader:
         return len(self.raw_bytes) - self.bytes_read
 
 
-class Architecture(Enum):
-    LittleEndian = UnsignedInt8(0)
-    BigEndian = UnsignedInt8(1)
-
-
-@dataclass
-class RecordHeader:
-    is_normal_header: bool
-    is_definition_message: bool
-    has_developer_data: bool
-    local_message_type: UnsignedInt8
-
-
-@dataclass
-class NormalRecordHeader(RecordHeader):
-    pass
-
-
-@dataclass
-class CompressedTimestampRecordHeader(RecordHeader):
-    time_offset: UnsignedInt8
-    previous_Timestamp: UnsignedInt32
-
-
-@dataclass
-class RecordContent:
-    pass
-
-
-@dataclass
-class Field:
-    value: BaseType
-
-
-@dataclass
-class FieldDefinition:
-    number: UnsignedInt8
-    size: UnsignedInt8
-    endian_ability: bool
-    base_type: UnsignedInt8
-    reserved_bits: UnsignedInt8
-
-
-@dataclass
-class MessageDefinition(RecordContent):
-    reserved_byte: UnsignedInt8
-    architecture: Architecture
-    global_message_number: UnsignedInt16
-    field_definitions: List[FieldDefinition]
-    developer_field_definitions: List[FieldDefinition]
-
-
-@dataclass
-class MessageContent(RecordContent):
-    fields: List[Field]
-    developer_fields: List[Field]
-
-
-@dataclass
-class Record:
-    header: RecordHeader
-    content: RecordContent
-
-
-@dataclass
-class FileHeader:
-    header_size: UnsignedInt8
-    protocol_version: UnsignedInt8
-    profile_version: UnsignedInt16
-    data_size: UnsignedInt32
-    data_type: str
-    crc: UnsignedInt16
-
-
-@dataclass
-class File:
-    header: FileHeader
-    records: List[Record]
-    crc: UnsignedInt16
-
-
 class Decoder:
+    TIMESTAMP_FIELD_NUMBER = 253
+    MESSAGE_INDEX_FIELD_NUMBER = 254
+    PART_INDEX_FIELD_NUMBER = 250
+
     IS_COMPRESSED_TIMESTAMP_HEADER_POSITION = 8 - 1
     IS_DEFINITION_MESSAGE_POSITION = 7 - 1
     HAS_DEVELOPER_DATA_POSITION = 6 - 1
@@ -241,7 +154,7 @@ class Decoder:
 
     def decode_record(self) -> Record:
         header_byte = self.reader.read_byte()
-        is_compressed_timestamp_header = bit_get(header_byte, Decoder.IS_COMPRESSED_TIMESTAMP_HEADER_POSITION)
+        is_compressed_timestamp_header = Decoder.bit_get(header_byte, Decoder.IS_COMPRESSED_TIMESTAMP_HEADER_POSITION)
 
         if is_compressed_timestamp_header:
             header = self.decode_compressed_timestamp_record_header(header_byte)
@@ -256,9 +169,9 @@ class Decoder:
         return Record(header, content)
 
     def decode_normal_record_header(self, header: UnsignedInt8) -> NormalRecordHeader:
-        is_definition_message = bit_get(header, Decoder.IS_DEFINITION_MESSAGE_POSITION)
-        has_developer_data = bit_get(header, Decoder.HAS_DEVELOPER_DATA_POSITION)
-        reserved_bit = bit_get(header, Decoder.RESERVED_BIT_POSITION)
+        is_definition_message = Decoder.bit_get(header, Decoder.IS_DEFINITION_MESSAGE_POSITION)
+        has_developer_data = Decoder.bit_get(header, Decoder.HAS_DEVELOPER_DATA_POSITION)
+        reserved_bit = Decoder.bit_get(header, Decoder.RESERVED_BIT_POSITION)
 
         if reserved_bit:
             raise FITFileFormatError('Reserved bit on record header is 1, expected 0')
@@ -276,7 +189,7 @@ class Decoder:
         number = self.reader.read_byte()
         size = self.reader.read_byte()
         type_byte = self.reader.read_byte()
-        endian_ability = bit_get(type_byte, 8 - 1)
+        endian_ability = Decoder.bit_get(type_byte, 8 - 1)
         base_type = type_byte & UnsignedInt8(31)  # 1st to 5th bits
         reserved_bits = type_byte & UnsignedInt8(96)  # 6th to 7th bits
 
@@ -304,26 +217,26 @@ class Decoder:
         self.message_definitions[header.local_message_type] = definition
         return definition
 
-    def decode_field(self, field_definition: FieldDefinition) -> Field:
-        raw_bytes = self.reader.read_bytes(field_definition.size)
+    def decode_field(self, field_definition: FieldDefinition) -> RecordField:
+        raw_bytes = self.reader.read_bytes(field_definition.size)  # TODO endianness
 
         type_class = BASE_TYPE_NUMBER_TO_CLASS[field_definition.base_type]
         decoded_value = type_class.from_bytes(raw_bytes)
 
-        if field_definition.number == MESSAGE_INDEX_FIELD_NUMBER:
+        if field_definition.number == Decoder.MESSAGE_INDEX_FIELD_NUMBER:
             if field_definition.base_type != UnsignedInt16.metadata.base_type_number:
-                raise FITFileFormatError('Message Index field number {} is expected to be of type {}, {} found', MESSAGE_INDEX_FIELD_NUMBER, UnsignedInt16.__name__, type_class.__name__)
+                raise FITFileFormatError('Message Index field number {} is expected to be of type {}, {} found', Decoder.MESSAGE_INDEX_FIELD_NUMBER, UnsignedInt16.__name__, type_class.__name__)
 
-        if field_definition.number == PART_INDEX_FIELD_NUMBER:
+        if field_definition.number == Decoder.PART_INDEX_FIELD_NUMBER:
             if field_definition.base_type != UnsignedInt32.metadata.base_type_number:
-                raise FITFileFormatError('Part Index field number {} is expected to be of type {}, {} found', MESSAGE_INDEX_FIELD_NUMBER, UnsignedInt32.__name__, type_class.__name__)
+                raise FITFileFormatError('Part Index field number {} is expected to be of type {}, {} found', Decoder.MESSAGE_INDEX_FIELD_NUMBER, UnsignedInt32.__name__, type_class.__name__)
 
-        if field_definition.number == TIMESTAMP_FIELD_NUMBER:
+        if field_definition.number == Decoder.TIMESTAMP_FIELD_NUMBER:
             if field_definition.base_type != UnsignedInt32.metadata.base_type_number:
-                raise FITFileFormatError('Timestamp field number {} is expected to be of type {}, {} found', TIMESTAMP_FIELD_NUMBER, UnsignedInt32.__name__, type_class.__name__)
+                raise FITFileFormatError('Timestamp field number {} is expected to be of type {}, {} found', Decoder.TIMESTAMP_FIELD_NUMBER, UnsignedInt32.__name__, type_class.__name__)
             self.most_recent_timestamp = decoded_value
 
-        return Field(decoded_value)
+        return RecordField(decoded_value)
 
     def decode_message_content(self, header: NormalRecordHeader) -> MessageContent:
         message_definition = self.message_definitions.get(header.local_message_type)
@@ -350,7 +263,11 @@ class Decoder:
         return expected_crc
 
     @staticmethod
-    def decode_fit_file(file_name) -> File:
+    def bit_get(byte: UnsignedInt8, position: int) -> bool:
+        return byte & (1 << position) > 0
+
+    @staticmethod
+    def decode_fit_file(file_name: str) -> File:
         # Reads the binary data of the .FIT file
         file_bytes = open(file_name, "rb").read()
 
@@ -360,3 +277,14 @@ class Decoder:
 
         # Decodes the file
         return decoder.decode_file()
+
+    @staticmethod
+    def decode_fit_messages(file_name: str) -> List[Message]:
+        # Reads the FIT file
+        file = Decoder.decode_fit_file(file_name)
+
+        messages = []
+
+
+
+        return messages
