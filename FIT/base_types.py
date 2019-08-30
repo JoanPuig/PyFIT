@@ -25,6 +25,7 @@ BASE_TYPE_NAME_MAP = {
     'float32': 'Float32',
     'float64': 'Float64',
     'byte': 'Byte',
+    'bool': 'Bool'
 }
 
 

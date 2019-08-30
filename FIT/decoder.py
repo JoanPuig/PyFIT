@@ -2,10 +2,11 @@
 # See LICENSE for details
 
 
+import importlib
 from typing import List, Dict, Union, Optional
 
 from FIT.base_types import UnsignedInt8, UnsignedInt16, UnsignedInt32, UnsignedInt64, BASE_TYPE_NUMBER_TO_CLASS
-from FIT.model import MessageDefinition, File, FileHeader, Record, NormalRecordHeader, CompressedTimestampRecordHeader, FieldDefinition, Architecture, RecordField, MessageContent, Message
+from FIT.model import MessageDefinition, File, FileHeader, Record, NormalRecordHeader, CompressedTimestampRecordHeader, FieldDefinition, Architecture, RecordField, MessageContent, Message, UndocumentedMessage
 
 import numpy as np
 
@@ -279,12 +280,39 @@ class Decoder:
         return decoder.decode_file()
 
     @staticmethod
-    def decode_fit_messages(file_name: str) -> List[Message]:
+    def decode_fit_messages(file_name: str, error_on_undocumented_message: bool = True) -> List[Message]:
         # Reads the FIT file
         file = Decoder.decode_fit_file(file_name)
 
+        from FIT.types import MesgNum
+
         messages = []
+        definitions = {}
+        for record in file.records:
+            if record.header.is_definition_message:
+                global_message_number = record.content.global_message_number
+                if global_message_number in MesgNum._value2member_map_:
+                    definitions[record.header.local_message_type] = MesgNum(global_message_number)
+                else:
+                    if error_on_undocumented_message:
+                        raise FITFileFormatError('Definition references MesgNum {} which is not documented', global_message_number)
+                    else:
+                        definitions[record.header.local_message_type] = None
 
+            else:
+                local_message_type = record.header.local_message_type
 
+                if local_message_type not in definitions:
+                    raise FITFileFormatError('Local message type {} has not been previously defined', local_message_type)
+
+                global_message_number = definitions[local_message_type]
+
+                if global_message_number:
+                    mod = importlib.import_module('FIT.types')
+                    message_class = getattr(mod, global_message_number.name)
+                    message = message_class.from_record(record)
+                else:
+                    message = UndocumentedMessage.from_record(record)
+                messages.append(message)
 
         return messages

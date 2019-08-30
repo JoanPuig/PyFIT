@@ -111,6 +111,7 @@ class Message(ABC):
 
 @dataclass
 class UndocumentedMessage(Message):
-    pass
-
+    @staticmethod
+    def from_record(record: Record):
+        return UndocumentedMessage()
 

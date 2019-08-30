@@ -1,0 +1,3 @@
+Check profile has no repeated Types or Messages
+Check all messages in MesgNum have a definition
+Endianness

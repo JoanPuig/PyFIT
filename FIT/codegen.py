@@ -4,54 +4,11 @@
 
 import inspect
 import keyword
-from typing import Dict, List
-
+from typing import Dict, List, Set
 
 from FIT.profile import Profile
 from pathlib import Path
 from FIT.base_types import BASE_TYPE_NAME_MAP
-
-
-DEFAULT_UNIT_SYNONYMS = {
-    '2 * cycles (steps)': 'two_cycles_steps',
-    '100 * m': 'length_100_m',
-    'm/s,\nm': 'm_per_s_and_m',
-
-    'min': 'minutes',
-    'deg/s': 'degrees/s',
-
-    'C': 'degrees_celsius',
-    'if': 'intensity_factor',
-    'tss': 'training_stress_score',
-    'mmHg': 'mm_Hg',
-    '': 'dimensionless',
-}
-
-
-DEFAULT_INVALID_VALUE_NAME_IDENTIFIERS = {
-    'None': 'Null',
-    '4iiiis': 'Innovations4iiiis',
-    '1partcarbon': 'OnePartCarbon',
-    '3WayCalfRaise': 'ThreeWayCalfRaise',
-    '3WayWeightedCalfRaise': 'ThreeWayCalfRaise',
-    '3WaySingleLegCalfRaise': 'ThreeWaySingleLegCalfRaise',
-    '3WayWeightedSingleLegCalfRaise': 'ThreeWayWeightedSingleLegCalfRaise',
-    '45DegreeCableExternalRotation': 'FortyFiveDegreeCableExternalRotation',
-    '45DegreePlank': 'FortyFiveDegreePlank',
-    '90DegreeStaticHold': 'NinetyDegreeStaticHold',
-    '30DegreeLatPulldown': 'ThirtyDegreeLatPulldown',
-    '90DegreeCableExternalRotation': 'NinetyDegreeCableExternalRotation',
-}
-
-
-DEFAULT_FREE_RANGE_TYPES = [
-    'MessageIndex',
-    'UserLocalId',
-    'FitBaseUnit',
-    'DateTime',
-    'LocalDateTime',
-    'DeviceIndex'
-]
 
 
 class CodeWriterError(Exception):
@@ -106,6 +63,45 @@ class CodeGeneratorError(Exception):
 
 
 class CodeGenerator:
+    DEFAULT_UNIT_SYNONYMS = {
+        '2 * cycles (steps)': 'two_cycles_steps',
+        '100 * m': 'length_100_m',
+        'm/s,\nm': 'm_per_s_and_m',
+
+        'min': 'minutes',
+        'deg/s': 'degrees/s',
+
+        'C': 'degrees_celsius',
+        'if': 'intensity_factor',
+        'tss': 'training_stress_score',
+        'mmHg': 'mm_Hg',
+        '': 'dimensionless',
+    }
+
+    DEFAULT_INVALID_VALUE_NAME_IDENTIFIERS = {
+        'None': 'Null',
+        '4iiiis': 'Innovations4iiiis',
+        '1partcarbon': 'OnePartCarbon',
+        '3WayCalfRaise': 'ThreeWayCalfRaise',
+        '3WayWeightedCalfRaise': 'ThreeWayWeightedCalfRaise',
+        '3WaySingleLegCalfRaise': 'ThreeWaySingleLegCalfRaise',
+        '3WayWeightedSingleLegCalfRaise': 'ThreeWayWeightedSingleLegCalfRaise',
+        '45DegreeCableExternalRotation': 'FortyFiveDegreeCableExternalRotation',
+        '45DegreePlank': 'FortyFiveDegreePlank',
+        '90DegreeStaticHold': 'NinetyDegreeStaticHold',
+        '30DegreeLatPulldown': 'ThirtyDegreeLatPulldown',
+        '90DegreeCableExternalRotation': 'NinetyDegreeCableExternalRotation',
+    }
+
+    DEFAULT_FREE_RANGE_TYPES = [
+        'MessageIndex',
+        'UserLocalId',
+        'FitBaseUnit',
+        'DateTime',
+        'LocalDateTime',
+        'DeviceIndex'
+    ]
+
     def __init__(self, profile: Profile, code_writer: CodeWriter = None, unit_synonyms: Dict[str, str] = None, invalid_value_identifiers: Dict[str, str] = None, free_range_types: List[str] = None):
         self.profile = profile
 
@@ -117,17 +113,17 @@ class CodeGenerator:
         if unit_synonyms:
             self.unit_synonyms = unit_synonyms
         else:
-            self.unit_synonyms = DEFAULT_UNIT_SYNONYMS
+            self.unit_synonyms = CodeGenerator.DEFAULT_UNIT_SYNONYMS
 
         if invalid_value_identifiers:
             self.invalid_value_name_identifiers = invalid_value_identifiers
         else:
-            self.invalid_value_name_identifiers = DEFAULT_INVALID_VALUE_NAME_IDENTIFIERS
+            self.invalid_value_name_identifiers = CodeGenerator.DEFAULT_INVALID_VALUE_NAME_IDENTIFIERS
 
         if free_range_types:
             self.free_range_types = free_range_types
         else:
-            self.free_range_types = DEFAULT_FREE_RANGE_TYPES
+            self.free_range_types = CodeGenerator.DEFAULT_FREE_RANGE_TYPES
 
     def generate_full(self):
         self.generate_header()
@@ -151,11 +147,14 @@ class CodeGenerator:
         cw = self.code_writer
         cw.write('from typing import List')
         cw.write('from enum import Enum, auto')
+        cw.write('from dataclasses import dataclass')
         cw.new_line()
         cw.write('from FIT.base_types import SignedInt8, SignedInt16, SignedInt32, SignedInt64')
         cw.write('from FIT.base_types import UnsignedInt8, UnsignedInt16, UnsignedInt32, UnsignedInt64')
         cw.write('from FIT.base_types import UnsignedInt8z, UnsignedInt16z, UnsignedInt32z, UnsignedInt64z')
         cw.write('from FIT.base_types import FITEnum, String, Float32, Float64, Byte')
+        cw.new_line()
+        cw.write('from FIT.model import Record, Message')
 
     def generate_units(self):
         cw = self.code_writer
@@ -236,7 +235,7 @@ class CodeGenerator:
                     CodeGenerator.check_valid_name(value_name)
 
                     if type(value.value) == str:
-                        value_str = "'{}'".format(value.value)
+                        value_str = "{}".format(value.value)
                     else:
                         value_str = '{:d}'.format(int(value.value))
 
@@ -247,6 +246,10 @@ class CodeGenerator:
                         'original_value_name': value.name,
                         'comment': value.comment}
                     )
+
+                duplicate_value_names = CodeGenerator.duplicates([v['value_name'] for v in resolved_values])
+                if duplicate_value_names:
+                    raise CodeGeneratorError('Type {} has duplicate value names: {}'.format(type_name, ','.join(duplicate_value_names)))
 
                 max_name_length = max([len(resolved_value['value_name']) for resolved_value in resolved_values])
                 max_value_length = max([len(resolved_value['value_str']) for resolved_value in resolved_values])
@@ -268,14 +271,16 @@ class CodeGenerator:
         messages = self.profile.messages
 
         for message in messages:
-            name = CodeGenerator.capitalize_type_name(message.name)
+            message_name = CodeGenerator.capitalize_type_name(message.name)
             cw.write('@dataclass')
             cw.write('# FIT message name: {}', message.name)
-            cw.write('class {}(Message):', name)
+            cw.write('class {}(Message):', message_name)
             cw.indent()
 
             resolved_fields = []
             for field in message.fields:
+                CodeGenerator.check_valid_name(field.name)
+
                 resolved_field = {
                     'name': field.name,
                     'type': CodeGenerator.capitalize_type_name(BASE_TYPE_NAME_MAP.get(field.type, field.type)),
@@ -283,10 +288,17 @@ class CodeGenerator:
                     'is_scalar': not field.array,
                 }
 
+                if field.type == 'bool':
+                    resolved_field['type'] = 'bool'
+
                 if not resolved_field['is_scalar']:
                     resolved_field['type'] = 'List[{}]'.format(resolved_field['type'])
 
                 resolved_fields.append(resolved_field)
+
+            duplicate_field_names = CodeGenerator.duplicates([v['name'] for v in resolved_fields])
+            if duplicate_field_names:
+                raise CodeGeneratorError('Message {} has duplicate value names: {}'.format(message_name, ','.join(duplicate_field_names)))
 
             max_name_length = max([len(resolved_field['name']) for resolved_field in resolved_fields])
             max_type_length = max([len(resolved_field['type']) for resolved_field in resolved_fields])
@@ -301,17 +313,23 @@ class CodeGenerator:
 
             cw.new_line()
             cw.write('@staticmethod')
-            cw.write('def from_record(record: Record) -> {}:', name)
+            # cw.write('def from_record(record: Record) -> {}:', message_name) TODO type checking
+            cw.write('def from_record(record: Record):')
             cw.indent()
-            cw.write('pass')
+            cw.write('return {}()', message_name)
             cw.unindent()
             cw.unindent()
 
             cw.new_line(2)
 
     @staticmethod
+    def duplicates(elements: List) -> Set:
+        s = set()
+        return set(element for element in elements if element in s or s.add(element))
+
+    @staticmethod
     def capitalize_type_name(name: str) -> str:
-        return ''.join(c.capitalize() for c in name.split('_'))
+        return ''.join(c[0].capitalize() + c[1:] for c in name.split('_'))
 
     @staticmethod
     def check_valid_name(name: str) -> None:
