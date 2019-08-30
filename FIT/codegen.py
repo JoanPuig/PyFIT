@@ -6,6 +6,7 @@ import inspect
 import keyword
 from typing import Dict, List, Set
 
+from FIT import duplicates
 from FIT.profile import Profile
 from pathlib import Path
 from FIT.base_types import BASE_TYPE_NAME_MAP
@@ -102,7 +103,11 @@ class CodeGenerator:
         'DeviceIndex'
     ]
 
-    def __init__(self, profile: Profile, code_writer: CodeWriter = None, unit_synonyms: Dict[str, str] = None, invalid_value_identifiers: Dict[str, str] = None, free_range_types: List[str] = None):
+    DEFAULT_MISSING_MESSAGE_DEFINITIONS = [
+        'Pad'
+    ]
+
+    def __init__(self, profile: Profile, code_writer: CodeWriter = None, unit_synonyms: Dict[str, str] = None, invalid_value_identifiers: Dict[str, str] = None, free_range_types: List[str] = None, missing_message_definitions: List[str] = None):
         self.profile = profile
 
         if code_writer:
@@ -124,6 +129,11 @@ class CodeGenerator:
             self.free_range_types = free_range_types
         else:
             self.free_range_types = CodeGenerator.DEFAULT_FREE_RANGE_TYPES
+
+        if missing_message_definitions:
+            self.missing_message_definitions = missing_message_definitions
+        else:
+            self.missing_message_definitions = CodeGenerator.DEFAULT_MISSING_MESSAGE_DEFINITIONS
 
     def generate_full(self):
         self.generate_header()
@@ -154,7 +164,7 @@ class CodeGenerator:
         cw.write('from FIT.base_types import UnsignedInt8z, UnsignedInt16z, UnsignedInt32z, UnsignedInt64z')
         cw.write('from FIT.base_types import FITEnum, String, Float32, Float64, Byte')
         cw.new_line()
-        cw.write('from FIT.model import Record, Message')
+        cw.write('from FIT.model import Record, Message, MessageDefinition')
 
     def generate_units(self):
         cw = self.code_writer
@@ -234,20 +244,21 @@ class CodeGenerator:
                     value_name = self.invalid_value_name_identifiers.get(value_name, value_name)
                     CodeGenerator.check_valid_name(value_name)
 
-                    if type(value.value) == str:
-                        value_str = "{}".format(value.value)
-                    else:
-                        value_str = '{:d}'.format(int(value.value))
+                    if type_name != 'MesgNum' or value_name not in self.missing_message_definitions:
+                        if type(value.value) == str:
+                            value_str = "{}".format(value.value)
+                        else:
+                            value_str = '{:d}'.format(int(value.value))
 
-                    resolved_values.append({
-                        'value_name': value_name,
-                        'base_type': BASE_TYPE_NAME_MAP[type_profile.base_type],
-                        'value_str': value_str,
-                        'original_value_name': value.name,
-                        'comment': value.comment}
-                    )
+                        resolved_values.append({
+                            'value_name': value_name,
+                            'base_type': BASE_TYPE_NAME_MAP[type_profile.base_type],
+                            'value_str': value_str,
+                            'original_value_name': value.name,
+                            'comment': value.comment}
+                        )
 
-                duplicate_value_names = CodeGenerator.duplicates([v['value_name'] for v in resolved_values])
+                duplicate_value_names = duplicates([v['value_name'] for v in resolved_values])
                 if duplicate_value_names:
                     raise CodeGeneratorError('Type {} has duplicate value names: {}'.format(type_name, ','.join(duplicate_value_names)))
 
@@ -296,7 +307,7 @@ class CodeGenerator:
 
                 resolved_fields.append(resolved_field)
 
-            duplicate_field_names = CodeGenerator.duplicates([v['name'] for v in resolved_fields])
+            duplicate_field_names = duplicates([v['name'] for v in resolved_fields])
             if duplicate_field_names:
                 raise CodeGeneratorError('Message {} has duplicate value names: {}'.format(message_name, ','.join(duplicate_field_names)))
 
@@ -314,10 +325,10 @@ class CodeGenerator:
             cw.new_line()
             cw.write('@staticmethod')
             # cw.write('def from_record(record: Record) -> {}:', message_name) TODO type checking
-            cw.write('def from_record(record: Record):')
+            cw.write('def from_record(record: Record, message_definition: MessageDefinition):')
             cw.indent()
-            cw.write('developer_fields = None')
-            cw.write('undocumented_fields = None')
+            cw.write('developer_fields = Message.developer_fields_from_record(record, message_definition)')
+            cw.write('undocumented_fields = Message.undocumented_fields_from_record(record, message_definition)')
             for resolved_field in resolved_fields:
                 cw.write('{} = None', resolved_field['name'])
             cw.write('return {}({})', message_name, ', '.join(['developer_fields', 'undocumented_fields'] + [resolved_field['name'] for resolved_field in resolved_fields]))
@@ -325,11 +336,6 @@ class CodeGenerator:
             cw.unindent()
 
             cw.new_line(2)
-
-    @staticmethod
-    def duplicates(elements: List) -> Set:
-        s = set()
-        return set(element for element in elements if element in s or s.add(element))
 
     @staticmethod
     def capitalize_type_name(name: str) -> str:

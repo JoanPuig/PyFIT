@@ -297,7 +297,7 @@ class Decoder:
             if record.header.is_definition_message:
                 global_message_number = record.content.global_message_number
                 if global_message_number in MesgNum._value2member_map_:
-                    definitions[record.header.local_message_type] = MesgNum(global_message_number)
+                    definitions[record.header.local_message_type] = record.content
                 else:
                     error_message = 'Definition references MesgNum {} which is not documented'.format(global_message_number)
                     if error_on_undocumented_message:
@@ -312,14 +312,15 @@ class Decoder:
                 if local_message_type not in definitions:
                     raise FITFileFormatError('Local message type {} has not been previously defined'.format(local_message_type))
 
-                global_message_number = definitions[local_message_type]
+                message_definition = definitions[local_message_type]
 
-                if global_message_number:
+                if message_definition:
+                    global_message_number = MesgNum(message_definition.global_message_number)
                     mod = importlib.import_module('FIT.types')
                     message_class = getattr(mod, global_message_number.name)
-                    message = message_class.from_record(record)
+                    message = message_class.from_record(record, message_definition)
                 else:
-                    message = UndocumentedMessage.from_record(record)
+                    message = UndocumentedMessage.from_record(record, None)
                 messages.append(message)
 
         return messages

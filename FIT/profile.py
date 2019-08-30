@@ -11,6 +11,8 @@ import hashlib
 
 import xlrd
 
+from FIT import duplicates
+
 
 class UnexpectedProfileContent(Exception):
     pass
@@ -160,9 +162,28 @@ class Profile:
         split_types = Profile.split(raw_types[1:])
         types = [Profile.parse_type(type_data) for type_data in split_types]
 
+        duplicate_type_names = duplicates([type_def.name for type_def in types])
+        if duplicate_type_names:
+            raise UnexpectedProfileContent('Profile has duplicate type names: {}'.format(','.join(duplicate_type_names)))
+
         messages_sheet = book.sheet_by_name('Messages')
         raw_messages = Profile.extract_data(messages_sheet)
         split_messages = Profile.split(raw_messages[1:])
         messages = [Profile.parse_message(message_data) for message_data in split_messages]
+
+        message_names = [message.name for message in messages]
+        duplicate_message_types = duplicates(message_names)
+        if duplicate_message_types:
+            raise UnexpectedProfileContent('Profile has duplicate message types: {}'.format(','.join(duplicate_message_types)))
+
+        missing = []
+        for type_def in types:
+            if type_def.name == 'mesg_num':
+                for value in type_def.values:
+                    if (value.name not in message_names) and (value.name not in ['mfg_range_min', 'mfg_range_max']):
+                        missing.append('{} ({})'.format(value.name, value.value))
+
+        # if missing:
+        #    raise UnexpectedProfileContent('Profile has entry in mesg_num for [{}] but no corresponding message definition'.format(', '.join(missing)))
 
         return Profile(version, types, messages)

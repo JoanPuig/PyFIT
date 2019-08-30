@@ -108,10 +108,25 @@ class Message(ABC):
     developer_fields: List[DeveloperMessageField]
     undocumented_fields: List[UndocumentedMessageField]
 
+    @staticmethod
+    def developer_fields_from_record(record: Record, message_definition: MessageDefinition) -> List[DeveloperMessageField]:
+        if record.content.developer_fields:
+            return []
+        else:
+            return []
+
+    @staticmethod
+    def undocumented_fields_from_record(record: Record, message_definition: MessageDefinition) -> List[UndocumentedMessageField]:
+        decoded_field_numbers = [field_definition.number for field_definition in message_definition.field_definitions]
+
+        return []
+
 
 @dataclass
 class UndocumentedMessage(Message):
     @staticmethod
-    def from_record(record: Record):
-        return UndocumentedMessage(None, None)
+    def from_record(record: Record, message_definition: MessageDefinition):
+        developer_fields = Message.developer_fields_from_record(record, message_definition)
+        undocumented_fields = Message.undocumented_fields_from_record(record, message_definition)
+        return UndocumentedMessage(developer_fields, undocumented_fields)
 
