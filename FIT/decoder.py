@@ -4,7 +4,7 @@
 
 import importlib
 import warnings
-from typing import List, Dict, Union, Optional, Tuple
+from typing import Dict, Union, Optional, Tuple
 
 import FIT
 from FIT.base_types import UnsignedInt8, UnsignedInt16, UnsignedInt32, UnsignedInt64, BASE_TYPE_NUMBER_TO_CLASS
@@ -207,7 +207,7 @@ class Decoder:
         if reserved_bits:
             raise FITFileContentError('Invalid FieldDefinition reserved bits, expected 0, read {}'.format(reserved_bits))
 
-        return FieldDefinition(number, size, endian_ability, base_type, reserved_bits)
+        return FieldDefinition(number, size, endian_ability, base_type)
 
     def decode_message_definition(self, header: NormalRecordHeader) -> MessageDefinition:
         reserved_byte = self.reader.read_byte()
@@ -290,7 +290,7 @@ class Decoder:
         return decoder.decode_file()
 
     @staticmethod
-    def decode_fit_messages(file_name: str, error_on_undocumented_message: bool = False, error_on_undocumented_field: bool = False) -> Tuple[Message]:
+    def decode_fit_messages(file_name: str, error_on_undocumented_message: bool = False, error_on_undocumented_field: bool = False, error_on_invalid_enum_value: bool = False) -> Tuple[Message]:
         # Reads the FIT file
         file = Decoder.decode_fit_file(file_name)
 
@@ -301,7 +301,7 @@ class Decoder:
 
         messages = []
         definitions = {}
-        warned_undocumented_MesgNum = []
+        warned_undocumented_msg_num = []
         warned_manufacturer_specific_messages = []
         warned_undocumented_fields = []
         for record in file.records:
@@ -320,9 +320,9 @@ class Decoder:
                         if error_on_undocumented_message:
                             raise FITFileContentError(error_message)
                         else:
-                            if error_message not in warned_undocumented_MesgNum:
+                            if error_message not in warned_undocumented_msg_num:
                                 warnings.warn(error_message, FITFileContentWarning)
-                                warned_undocumented_MesgNum.append(error_message)
+                                warned_undocumented_msg_num.append(error_message)
 
             else:
                 local_message_type = record.header.local_message_type
@@ -334,7 +334,7 @@ class Decoder:
 
                 is_manufacturer_specific = MesgNum.MfgRangeMin.value <= message_definition.global_message_number <= MesgNum.MfgRangeMax.value
                 if is_manufacturer_specific:
-                    message_class = ManufacturerSpecificMessage # TODO custom manufacturer specific messages
+                    message_class = ManufacturerSpecificMessage  # TODO custom manufacturer specific messages
                     class_name = ManufacturerSpecificMessage.__name__
                 else:
                     if message_definition.global_message_number in MesgNum._value2member_map_:
@@ -346,18 +346,18 @@ class Decoder:
                         message_class = UndocumentedMessage
                         class_name = UndocumentedMessage.__name__
 
-                    message = message_class.from_record(record, message_definition)
+                message = message_class.from_record(record, message_definition, error_on_invalid_enum_value)
 
-                    for undocumented_field in message.undocumented_fields:
-                        error_message = '{} message has undocumented field number {}'.format(class_name, undocumented_field.definition.number)
+                for undocumented_field in message.undocumented_fields:
+                    error_message = '{} message has undocumented field number {}'.format(class_name, undocumented_field.definition.number)
 
-                        if error_on_undocumented_field:
-                            raise FITFileContentError(error_message)
-                        else:
-                            if error_message not in warned_undocumented_fields:
-                                warnings.warn(error_message, FITFileContentWarning)
-                                warned_undocumented_fields.append(error_message)
+                    if error_on_undocumented_field:
+                        raise FITFileContentError(error_message)
+                    else:
+                        if error_message not in warned_undocumented_fields:
+                            warnings.warn(error_message, FITFileContentWarning)
+                            warned_undocumented_fields.append(error_message)
 
-                    messages.append(message)
+                messages.append(message)
 
         return tuple(messages)

@@ -144,6 +144,8 @@ class CodeGenerator:
         self.code_writer.new_line(2)
         self.generate_types()
         self.code_writer.new_line(2)
+        self.generate_extract_value()
+        self.code_writer.new_line(2)
         self.generate_messages()
 
     def generate_header(self):
@@ -155,16 +157,19 @@ class CodeGenerator:
 
     def generate_imports(self):
         cw = self.code_writer
-        cw.write('from typing import Tuple')
+        cw.write('import warnings')
+        cw.write('from typing import Tuple, Dict')
         cw.write('from enum import Enum, auto')
         cw.write('from dataclasses import dataclass')
         cw.new_line()
+        cw.write('from FIT.base_types import BASE_TYPE_NUMBER_TO_CLASS')
         cw.write('from FIT.base_types import SignedInt8, SignedInt16, SignedInt32, SignedInt64')
         cw.write('from FIT.base_types import UnsignedInt8, UnsignedInt16, UnsignedInt32, UnsignedInt64')
         cw.write('from FIT.base_types import UnsignedInt8z, UnsignedInt16z, UnsignedInt32z, UnsignedInt64z')
         cw.write('from FIT.base_types import FITEnum, String, Float32, Float64, Byte')
         cw.new_line()
-        cw.write('from FIT.model import Record, Message, MessageDefinition')
+        cw.write('from FIT.model import Record, Message, MessageDefinition, FieldDefinition, RecordField')
+        cw.write('from FIT.decoder import FITFileContentError, FITFileContentWarning')
 
     def generate_units(self):
         cw = self.code_writer
@@ -277,6 +282,63 @@ class CodeGenerator:
             cw.unindent()
             cw.new_line(2)
 
+    def generate_extract_value(self):
+        cw = self.code_writer
+        cw.write('def extract_value(message_name: str, field_name: str, number: int, field_map: Dict[UnsignedInt8, Tuple[int, FieldDefinition]], fields: Tuple[RecordField], field_type, error_on_invalid_enum_value: bool = True):')
+        cw.indent()
+        cw.write('if number:')
+        cw.indent()
+        cw.write('if number in field_map:')
+        cw.indent()
+        cw.write('index, definition = field_map[number]')
+        cw.write('value = fields[index].value')
+        cw.write('if not field_type:')
+        cw.indent()
+        cw.write('return value')
+        cw.unindent()
+        cw.write('if issubclass(field_type, Enum):')
+        cw.indent()
+        cw.write('if value in field_type._value2member_map_:')
+        cw.indent()
+        cw.write('return field_type(value)')
+        cw.unindent()
+        cw.write('else:')
+        cw.indent()
+        cw.write('error_message = \'Field "{}" of type "{}" in message "{}" has unrecognized value "{}"\'.format(field_name, field_type.__name__, message_name, value)')
+        cw.write('if error_on_invalid_enum_value:')
+        cw.indent()
+        cw.write('raise FITFileContentError(error_message)')
+        cw.unindent()
+        cw.write('else:')
+        cw.indent()
+        cw.write('warnings.warn(error_message, FITFileContentWarning)')
+        cw.unindent()
+        cw.unindent()
+        cw.unindent()
+        cw.write('else:')
+        cw.indent()
+        cw.write('if issubclass(field_type, BASE_TYPE_NUMBER_TO_CLASS[definition.base_type]):')
+        cw.indent()
+        cw.write('return field_type(value)')
+        cw.unindent()
+        cw.write('else:')
+        cw.indent()
+        cw.write('raise FITFileContentError(\'Field "{}" of type "{}" in message "{}" has been decoded with an incompatible type "{}"\'.format(field_name, field_type.__name__, message_name, value.__class__.__name__))')
+        cw.unindent()
+        cw.unindent()
+        cw.unindent()
+        cw.write('else:')
+        cw.indent()
+        cw.write('return None')
+        cw.unindent()
+        cw.unindent()
+        cw.write('else:')
+        cw.indent()
+        cw.write('return None')
+        cw.unindent()
+        cw.unindent()
+        cw.new_line()
+
     def generate_messages(self):
         cw = self.code_writer
         messages = self.profile.messages
@@ -297,6 +359,7 @@ class CodeGenerator:
                     'type': CodeGenerator.capitalize_type_name(BASE_TYPE_NAME_MAP.get(field.type, field.type)),
                     'comment': field.comment,
                     'is_scalar': not field.array,
+                    'number': field.number
                 }
 
                 if field.type == 'bool':
@@ -325,12 +388,19 @@ class CodeGenerator:
             cw.new_line()
             cw.write('@staticmethod')
             # cw.write('def from_record(record: Record) -> {}:', message_name) TODO type checking
-            cw.write('def from_record(record: Record, message_definition: MessageDefinition):')
+            cw.write('def from_record(record: Record, message_definition: MessageDefinition, error_on_invalid_enum_value: bool = True):')
             cw.indent()
-            cw.write('developer_fields = Message.developer_fields_from_record(record, message_definition)')
-            cw.write('undocumented_fields = Message.undocumented_fields_from_record(record.content, message_definition, ({}))', ', '.join([str(field.number) for field in message.fields if field.number is not None]))
+            cw.write('developer_fields = Message.developer_fields_from_record(record, message_definition, error_on_invalid_enum_value)')
+            cw.write('undocumented_fields = Message.undocumented_fields_from_record(record.content, message_definition, ({}), error_on_invalid_enum_value)', ', '.join([str(field.number) for field in message.fields if field.number is not None]))
+            cw.write('field_map = message_definition.mapped_field_definitions()')
+            cw.write('fields = record.content.fields')
+            cw.write('mn = \'{}\'', message_name)
+            cw.new_line()
+
             for resolved_field in resolved_fields:
-                cw.write('{} = None', resolved_field['name'])
+                if resolved_field['type'].startswith('Tuple['):
+                    resolved_field['type'] = 'None'  # TODO: handle arrays
+                cw.write('{} = extract_value(mn, \'{}\', {}, field_map, fields, {}, error_on_invalid_enum_value)', resolved_field['name'], resolved_field['name'], resolved_field['number'], resolved_field['type'])
             cw.write('return {}({})', message_name, ', '.join(['developer_fields', 'undocumented_fields'] + [resolved_field['name'] for resolved_field in resolved_fields]))
             cw.unindent()
             cw.unindent()

@@ -48,7 +48,6 @@ class FieldDefinition:
     size: UnsignedInt8
     endian_ability: bool
     base_type: UnsignedInt8
-    reserved_bits: UnsignedInt8
 
 
 @dataclass(frozen=True)
@@ -121,17 +120,17 @@ class Message:
     undocumented_fields: Tuple[UndocumentedMessageField]
 
     @staticmethod
-    def developer_fields_from_record(record: Record, message_definition: MessageDefinition) -> Tuple[DeveloperMessageField]:
-        if record.content.developer_fields:
-            return []
-        else:
-            return []
+    def developer_fields_from_record(record: Record, message_definition: MessageDefinition, error_on_invalid_enum_value: bool = True) -> Tuple[DeveloperMessageField]:
+        developer_fields = []
+        for developer_field in record.content.developer_fields:
+            pass  # TODO
+        return tuple(developer_fields)
 
     @staticmethod
-    def undocumented_fields_from_record(content: MessageContent, definition: MessageDefinition, expected_fields: Tuple[int]) -> Tuple[UndocumentedMessageField]:
+    def undocumented_fields_from_record(content: MessageContent, definition: MessageDefinition, expected_field_numbers: Tuple[int] = (), error_on_invalid_enum_value: bool = True) -> Tuple[UndocumentedMessageField]:
         undocumented = []
         for field_id, (field_position, field_definition) in definition.mapped_field_definitions().items():
-            if field_id not in expected_fields:
+            if field_id not in expected_field_numbers:
                 undocumented.append(UndocumentedMessageField(field_definition, content.fields[field_position].value))
 
         return tuple(undocumented)
@@ -140,17 +139,17 @@ class Message:
 @dataclass(frozen=True)
 class ManufacturerSpecificMessage(Message):
     @staticmethod
-    def from_record(record: Record, message_definition: MessageDefinition):
-        developer_fields = Message.developer_fields_from_record(record, message_definition)
-        undocumented_fields = Message.undocumented_fields_from_record(record, message_definition)
+    def from_record(record: Record, message_definition: MessageDefinition, error_on_invalid_enum_value: bool = True):
+        developer_fields = Message.developer_fields_from_record(record, message_definition, error_on_invalid_enum_value)
+        undocumented_fields = Message.undocumented_fields_from_record(record.content, message_definition, (), error_on_invalid_enum_value)
         return ManufacturerSpecificMessage(developer_fields, undocumented_fields)
 
 
 @dataclass(frozen=True)
 class UndocumentedMessage(Message):
     @staticmethod
-    def from_record(record: Record, message_definition: MessageDefinition):
-        developer_fields = []
-        undocumented_fields = []  # TODO all fields are undocumented Message.undocumented_fields_from_record(record, message_definition)
+    def from_record(record: Record, message_definition: MessageDefinition, error_on_invalid_enum_value: bool = True):
+        developer_fields = Message.developer_fields_from_record(record, message_definition)
+        undocumented_fields = Message.undocumented_fields_from_record(record.content, message_definition, (), error_on_invalid_enum_value)
         return UndocumentedMessage(developer_fields, undocumented_fields)
 
