@@ -56,7 +56,7 @@ def from_bytes(c, raw_bytes: bytes):
     if len(array) == 1:
         return c(array[0])
     else:
-        return (c(v) for v in array.tolist())
+        return tuple(array.tolist())
 
 
 class FITEnum(np.uint8, BaseType):

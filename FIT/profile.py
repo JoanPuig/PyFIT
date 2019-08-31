@@ -3,7 +3,7 @@
 import warnings
 from dataclasses import dataclass
 from enum import Enum
-from typing import List, Union
+from typing import Union, Tuple, Iterable, List
 
 import zipfile
 import hashlib
@@ -40,22 +40,22 @@ SDK_ZIP_SHA256 = {
 }
 
 
-@dataclass
+@dataclass(frozen=True)
 class Value:
     name: str
     value: Union[str, int]
     comment: str
 
 
-@dataclass
+@dataclass(frozen=True)
 class TypeProfile:
     name: str
     base_type: str
     comment: str
-    values: List[Value]
+    values: Tuple[Value]
 
 
-@dataclass
+@dataclass(frozen=True)
 class FieldProfile:
     number: int
     name: str
@@ -74,17 +74,17 @@ class FieldProfile:
     example: Union[str, int]
 
 
-@dataclass
+@dataclass(frozen=True)
 class MessageProfile:
     name: str
-    fields: List[FieldProfile]
+    fields: Tuple[FieldProfile]
 
 
 @dataclass
 class Profile:
     version: ProfileVersion
-    types: List[TypeProfile]
-    messages: List[MessageProfile]
+    types: Tuple[TypeProfile]
+    messages: Tuple[MessageProfile]
 
     @staticmethod
     def extract_data(sheet):
@@ -108,11 +108,19 @@ class Profile:
 
     @staticmethod
     def parse_type(type_data):
-        return TypeProfile(type_data[0][0], type_data[0][1], type_data[0][4], [Value(*v[2:]) for v in type_data[1:]])
+        return TypeProfile(type_data[0][0], type_data[0][1], type_data[0][4], tuple([Value(*v[2:]) for v in type_data[1:]]))
+
+    @staticmethod
+    def to_int(array: List, index: int):
+        if array[index] != '':
+            array[index] = int(array[index])
+        else:
+            array[index] = None
+        return array
 
     @staticmethod
     def parse_message(message_data):
-        return MessageProfile(message_data[0][0], [FieldProfile(*f[1:]) for f in message_data[1:]])
+        return MessageProfile(message_data[0][0], tuple([FieldProfile(*Profile.to_int(f[1:], 0)) for f in message_data[1:]]))
 
     @staticmethod
     def sha256(file_name: str):
@@ -155,10 +163,10 @@ class Profile:
             if expected_sheet in sheet_names:
                 sheet_names.remove(expected_sheet)
             else:
-                raise UnexpectedProfileContentError('Profile file does not contain a "{}" sheet'.format(expected_sheet))
+                raise UnexpectedProfileContentError('Profile {} file does not contain a "{}" sheet'.format(version.name, expected_sheet))
 
         if sheet_names:
-            raise UnexpectedProfileContentError('Profile file contains unexpected sheets: {}'.format(sheet_names))
+            raise UnexpectedProfileContentError('Profile {} file contains unexpected sheets: {}'.format(version.name, sheet_names))
 
         types_sheet = book.sheet_by_name('Types')
         raw_types = Profile.extract_data(types_sheet)
@@ -167,7 +175,7 @@ class Profile:
 
         duplicate_type_names = duplicates([type_def.name for type_def in types])
         if duplicate_type_names:
-            raise UnexpectedProfileContentError('Profile has duplicate type names: {}'.format(','.join(duplicate_type_names)))
+            raise UnexpectedProfileContentError('Profile {} has duplicate type names: {}'.format(version.name, ','.join(duplicate_type_names)))
 
         messages_sheet = book.sheet_by_name('Messages')
         raw_messages = Profile.extract_data(messages_sheet)
@@ -177,7 +185,7 @@ class Profile:
         message_names = [message.name for message in messages]
         duplicate_message_types = duplicates(message_names)
         if duplicate_message_types:
-            raise UnexpectedProfileContentError('Profile has duplicate message types: {}'.format(','.join(duplicate_message_types)))
+            raise UnexpectedProfileContentError('Profile {} has duplicate message types: {}'.format(version.name, ','.join(duplicate_message_types)))
 
         for type_def in types:
             if type_def.name == 'mesg_num':
@@ -188,7 +196,7 @@ class Profile:
                         missing_message_type.append('{} ({})'.format(value.name, value.value))
 
                 if missing_message_type:
-                    error_message = 'Profile has entry in mesg_num for [{}] but no corresponding message definition'.format(', '.join(missing_message_type))
+                    error_message = 'Profile {} has an entry in mesg_num for [{}] but no corresponding message definition'.format(version.name, ', '.join(missing_message_type))
                     if strict:
                         raise UnexpectedProfileContentError(error_message)
                     else:
@@ -200,7 +208,7 @@ class Profile:
                         missing_mesg_num_value.append(message_name)
 
                 if missing_mesg_num_value:
-                    error_message = 'Profile has message definition for [{}] but no corresponding value in mesg_num'.format(', '.join(missing_mesg_num_value))
+                    error_message = 'Profile {} has message definition for [{}] but no corresponding value in mesg_num'.format(version.name, ', '.join(missing_mesg_num_value))
                     if strict:
                         raise UnexpectedProfileContentError(error_message)
                     else:
@@ -208,4 +216,4 @@ class Profile:
 
                 break
 
-        return Profile(version, types, messages)
+        return Profile(version, tuple(types), tuple(messages))

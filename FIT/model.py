@@ -60,17 +60,17 @@ class MessageDefinition(RecordContent):
     developer_field_definitions: Tuple[FieldDefinition]
 
     @functools.lru_cache(1)
-    def mapped_field_definitions(self) -> Dict[UnsignedInt8, FieldDefinition]:
-        return {definition.number: definition for definition in self.field_definitions}
+    def mapped_field_definitions(self) -> Dict[UnsignedInt8, Tuple[int, FieldDefinition]]:
+        return {definition.number: (i, definition) for i, definition in enumerate(self.field_definitions)}
 
     @functools.lru_cache(1)
-    def mapped_developer_field_definitions(self) -> Dict[UnsignedInt8, FieldDefinition]:
-        return {definition.number: definition for definition in self.developer_field_definitions}
+    def mapped_developer_field_definitions(self) -> Dict[UnsignedInt8, Tuple[int, FieldDefinition]]:
+        return {definition.number: (i, definition) for i, definition in enumerate(self.developer_field_definitions)}
 
-    def field_definition(self, number: UnsignedInt8) -> FieldDefinition:
+    def field_definition(self, number: UnsignedInt8) -> Tuple[int, FieldDefinition]:
         return self.mapped_field_definitions()[number]
 
-    def developer_field_definition(self, number: UnsignedInt8) -> FieldDefinition:
+    def developer_field_definition(self, number: UnsignedInt8) -> Tuple[int, FieldDefinition]:
         return self.mapped_developer_field_definitions()[number]
 
 
@@ -128,10 +128,13 @@ class Message:
             return []
 
     @staticmethod
-    def undocumented_fields_from_record(record: Record, message_definition: MessageDefinition) -> Tuple[UndocumentedMessageField]:
-        decoded_field_numbers = [field_definition.number for field_definition in message_definition.field_definitions]
+    def undocumented_fields_from_record(content: MessageContent, definition: MessageDefinition, expected_fields: Tuple[int]) -> Tuple[UndocumentedMessageField]:
+        undocumented = []
+        for field_id, (field_position, field_definition) in definition.mapped_field_definitions().items():
+            if field_id not in expected_fields:
+                undocumented.append(UndocumentedMessageField(field_definition, content.fields[field_position].value))
 
-        return []
+        return tuple(undocumented)
 
 
 @dataclass(frozen=True)

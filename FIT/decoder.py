@@ -290,7 +290,7 @@ class Decoder:
         return decoder.decode_file()
 
     @staticmethod
-    def decode_fit_messages(file_name: str, error_on_undocumented_message: bool = False) -> List[Message]:
+    def decode_fit_messages(file_name: str, error_on_undocumented_message: bool = False) -> Tuple[Message]:
         # Reads the FIT file
         file = Decoder.decode_fit_file(file_name)
 
@@ -336,4 +336,4 @@ class Decoder:
                     message = UndocumentedMessage.from_record(record, None)
                 messages.append(message)
 
-        return messages
+        return tuple(messages)

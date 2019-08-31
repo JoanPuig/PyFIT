@@ -4,7 +4,7 @@
 
 import inspect
 import keyword
-from typing import Dict, List, Set
+from typing import Dict, Iterable
 
 from FIT import duplicates
 from FIT.profile import Profile
@@ -94,20 +94,20 @@ class CodeGenerator:
         '90DegreeCableExternalRotation': 'NinetyDegreeCableExternalRotation',
     }
 
-    DEFAULT_FREE_RANGE_TYPES = [
+    DEFAULT_FREE_RANGE_TYPES = (
         'MessageIndex',
         'UserLocalId',
         'FitBaseUnit',
         'DateTime',
         'LocalDateTime',
         'DeviceIndex'
-    ]
+    )
 
-    DEFAULT_MISSING_MESSAGE_DEFINITIONS = [
+    DEFAULT_MISSING_MESSAGE_DEFINITIONS = (
         'Pad'
-    ]
+    )
 
-    def __init__(self, profile: Profile, code_writer: CodeWriter = None, unit_synonyms: Dict[str, str] = None, invalid_value_identifiers: Dict[str, str] = None, free_range_types: List[str] = None, missing_message_definitions: List[str] = None):
+    def __init__(self, profile: Profile, code_writer: CodeWriter = None, unit_synonyms: Dict[str, str] = None, invalid_value_identifiers: Dict[str, str] = None, free_range_types: Iterable[str] = None, missing_message_definitions: Iterable[str] = None):
         self.profile = profile
 
         if code_writer:
@@ -328,7 +328,7 @@ class CodeGenerator:
             cw.write('def from_record(record: Record, message_definition: MessageDefinition):')
             cw.indent()
             cw.write('developer_fields = Message.developer_fields_from_record(record, message_definition)')
-            cw.write('undocumented_fields = Message.undocumented_fields_from_record(record, message_definition)')
+            cw.write('undocumented_fields = Message.undocumented_fields_from_record(record.content, message_definition, ({}))', ', '.join([str(field.number) for field in message.fields if field.number is not None]))
             for resolved_field in resolved_fields:
                 cw.write('{} = None', resolved_field['name'])
             cw.write('return {}({})', message_name, ', '.join(['developer_fields', 'undocumented_fields'] + [resolved_field['name'] for resolved_field in resolved_fields]))
