@@ -302,22 +302,27 @@ class Decoder:
         messages = []
         definitions = {}
         warned_undocumented_MesgNum = []
+        warned_manufacturer_specific_messages = []
         warned_undocumented_fields = []
         for record in file.records:
             if record.header.is_definition_message:
+                definitions[record.header.local_message_type] = record.content
                 global_message_number = record.content.global_message_number
-                is_manufacturer_specific = MesgNum.MfgRangeMin.value <= global_message_number <= MesgNum.MfgRangeMax.value
-                if global_message_number in MesgNum._value2member_map_ or is_manufacturer_specific:
-                    definitions[record.header.local_message_type] = record.content
-                else:
-                    error_message = 'Definition references MesgNum {} which is not documented'.format(global_message_number)
-                    if error_on_undocumented_message:
-                        raise FITFileContentError(error_message)
+                if global_message_number not in MesgNum._value2member_map_:
+                    is_manufacturer_specific = MesgNum.MfgRangeMin.value <= global_message_number <= MesgNum.MfgRangeMax.value
+                    if is_manufacturer_specific:
+                        warning_message = 'Definition references MesgNum {} which is manufacturer specific'.format(global_message_number)  # TODO manufacturer specific plugin
+                        if warning_message not in warned_manufacturer_specific_messages:
+                            warnings.warn(warning_message, FITFileContentWarning)
+                            warned_manufacturer_specific_messages.append(warning_message)
                     else:
-                        if error_message not in warned_undocumented_MesgNum:
-                            warnings.warn(error_message, FITFileContentWarning)
-                            warned_undocumented_MesgNum.append(error_message)
-                        definitions[record.header.local_message_type] = None
+                        error_message = 'Definition references MesgNum {} which is not documented'.format(global_message_number)
+                        if error_on_undocumented_message:
+                            raise FITFileContentError(error_message)
+                        else:
+                            if error_message not in warned_undocumented_MesgNum:
+                                warnings.warn(error_message, FITFileContentWarning)
+                                warned_undocumented_MesgNum.append(error_message)
 
             else:
                 local_message_type = record.header.local_message_type
@@ -327,27 +332,32 @@ class Decoder:
 
                 message_definition = definitions[local_message_type]
 
-                if message_definition:
-                    is_manufacturer_specific = MesgNum.MfgRangeMin.value <= message_definition.global_message_number <= MesgNum.MfgRangeMax.value
-                    if is_manufacturer_specific:
-                        message = ManufacturerSpecificMessage.from_record(record, message_definition)  # TODO custom manufacturer specific messages
-                    else:
+                is_manufacturer_specific = MesgNum.MfgRangeMin.value <= message_definition.global_message_number <= MesgNum.MfgRangeMax.value
+                if is_manufacturer_specific:
+                    message_class = ManufacturerSpecificMessage # TODO custom manufacturer specific messages
+                    class_name = ManufacturerSpecificMessage.__name__
+                else:
+                    if message_definition.global_message_number in MesgNum._value2member_map_:
                         global_message_number = MesgNum(message_definition.global_message_number)
                         mod = importlib.import_module('FIT.types')
                         message_class = getattr(mod, global_message_number.name)
-                        message = message_class.from_record(record, message_definition)
+                        class_name = global_message_number.name
+                    else:
+                        message_class = UndocumentedMessage
+                        class_name = UndocumentedMessage.__name__
 
-                        for undocumented_field in message.undocumented_fields:
-                            error_message = '{} message has undocumented field number {}'.format(global_message_number.name, undocumented_field.definition.number)
+                    message = message_class.from_record(record, message_definition)
 
-                            if error_on_undocumented_field:
-                                raise FITFileContentError(error_message)
-                            else:
-                                if error_message not in warned_undocumented_fields:
-                                    warnings.warn(error_message, FITFileContentWarning)
-                                    warned_undocumented_fields.append(error_message)
-                else:
-                    message = UndocumentedMessage.from_record(record, None)
-                messages.append(message)
+                    for undocumented_field in message.undocumented_fields:
+                        error_message = '{} message has undocumented field number {}'.format(class_name, undocumented_field.definition.number)
+
+                        if error_on_undocumented_field:
+                            raise FITFileContentError(error_message)
+                        else:
+                            if error_message not in warned_undocumented_fields:
+                                warnings.warn(error_message, FITFileContentWarning)
+                                warned_undocumented_fields.append(error_message)
+
+                    messages.append(message)
 
         return tuple(messages)
