@@ -12,5 +12,4 @@ from test.test_common import files
 def test_example(example_file: str):
     mod = importlib.import_module('.' + example_file[11:-3], 'examples')
     mod.main()
-
     assert True

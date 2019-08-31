@@ -25,6 +25,10 @@ class UnsupportedFITFeature(Exception):
     pass
 
 
+class FITTypesNotFoundError(Exception):
+    pass
+
+
 class CRCCalculator:
     CRC_TABLE = [
         UnsignedInt16(0x0000),
@@ -290,7 +294,10 @@ class Decoder:
         # Reads the FIT file
         file = Decoder.decode_fit_file(file_name)
 
-        from FIT.types import MesgNum
+        try:
+            from FIT.types import MesgNum
+        except ModuleNotFoundError:
+            raise FITTypesNotFoundError('Unable to load FIT.types, make sure you have executed the code generation first')
 
         messages = []
         definitions = {}
