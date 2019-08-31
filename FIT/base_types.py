@@ -2,7 +2,6 @@
 # See LICENSE for details
 
 
-from abc import ABC
 from dataclasses import dataclass
 import numpy as np
 
@@ -40,7 +39,7 @@ class TypeMetadata:
     numpy_type: type
 
 
-class BaseType(ABC):
+class BaseType:
     pass
 
 
@@ -57,7 +56,7 @@ def from_bytes(c, raw_bytes: bytes):
     if len(array) == 1:
         return c(array[0])
     else:
-        return [c(v) for v in array.tolist()]
+        return (c(v) for v in array.tolist())
 
 
 class FITEnum(np.uint8, BaseType):

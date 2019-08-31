@@ -10,5 +10,5 @@ from test.test_common import expected_fail_fit_files
 
 @pytest.mark.parametrize('file', expected_fail_fit_files())
 @pytest.mark.xfail(raises=FITFileFormatError)
-def test_decode_fit_file(file: str):
+def test_decode_expected_fail_fit_file(file: str):
     Decoder.decode_fit_file(file)

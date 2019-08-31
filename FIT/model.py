@@ -1,11 +1,9 @@
 # Copyright 2019 Joan Puig
 # See LICENSE for details
-
-
-from abc import ABC
+import functools
 from dataclasses import dataclass
 from enum import Enum
-from typing import List
+from typing import Tuple, Dict
 
 from FIT.base_types import BaseType, UnsignedInt8, UnsignedInt16, UnsignedInt32
 
@@ -15,7 +13,7 @@ class Architecture(Enum):
     BigEndian = UnsignedInt8(1)
 
 
-@dataclass
+@dataclass(frozen=True)
 class RecordHeader:
     is_normal_header: bool
     is_definition_message: bool
@@ -23,28 +21,28 @@ class RecordHeader:
     local_message_type: UnsignedInt8
 
 
-@dataclass
+@dataclass(frozen=True)
 class NormalRecordHeader(RecordHeader):
     pass
 
 
-@dataclass
+@dataclass(frozen=True)
 class CompressedTimestampRecordHeader(RecordHeader):
     time_offset: UnsignedInt8
     previous_Timestamp: UnsignedInt32
 
 
-@dataclass
+@dataclass(frozen=True)
 class RecordContent:
     pass
 
 
-@dataclass
+@dataclass(frozen=True)
 class RecordField:
     value: BaseType
 
 
-@dataclass
+@dataclass(frozen=True)
 class FieldDefinition:
     number: UnsignedInt8
     size: UnsignedInt8
@@ -53,28 +51,42 @@ class FieldDefinition:
     reserved_bits: UnsignedInt8
 
 
-@dataclass
+@dataclass(frozen=True)
 class MessageDefinition(RecordContent):
     reserved_byte: UnsignedInt8
     architecture: Architecture
     global_message_number: UnsignedInt16
-    field_definitions: List[FieldDefinition]
-    developer_field_definitions: List[FieldDefinition]
+    field_definitions: Tuple[FieldDefinition]
+    developer_field_definitions: Tuple[FieldDefinition]
+
+    @functools.lru_cache(1)
+    def mapped_field_definitions(self) -> Dict[UnsignedInt8, FieldDefinition]:
+        return {definition.number: definition for definition in self.field_definitions}
+
+    @functools.lru_cache(1)
+    def mapped_developer_field_definitions(self) -> Dict[UnsignedInt8, FieldDefinition]:
+        return {definition.number: definition for definition in self.developer_field_definitions}
+
+    def field_definition(self, number: UnsignedInt8) -> FieldDefinition:
+        return self.mapped_field_definitions()[number]
+
+    def developer_field_definition(self, number: UnsignedInt8) -> FieldDefinition:
+        return self.mapped_developer_field_definitions()[number]
 
 
-@dataclass
+@dataclass(frozen=True)
 class MessageContent(RecordContent):
-    fields: List[RecordField]
-    developer_fields: List[RecordField]
+    fields: Tuple[RecordField]
+    developer_fields: Tuple[RecordField]
 
 
-@dataclass
+@dataclass(frozen=True)
 class Record:
     header: RecordHeader
     content: RecordContent
 
 
-@dataclass
+@dataclass(frozen=True)
 class FileHeader:
     header_size: UnsignedInt8
     protocol_version: UnsignedInt8
@@ -84,45 +96,45 @@ class FileHeader:
     crc: UnsignedInt16
 
 
-@dataclass
+@dataclass(frozen=True)
 class File:
     header: FileHeader
-    records: List[Record]
+    records: Tuple[Record]
     crc: UnsignedInt16
 
 
-@dataclass
+@dataclass(frozen=True)
 class DeveloperMessageField:
     definition: FieldDefinition
     value: BaseType
 
 
-@dataclass
+@dataclass(frozen=True)
 class UndocumentedMessageField:
     definition: FieldDefinition
     value: BaseType
 
 
-@dataclass
-class Message(ABC):
-    developer_fields: List[DeveloperMessageField]
-    undocumented_fields: List[UndocumentedMessageField]
+@dataclass(frozen=True)
+class Message:
+    developer_fields: Tuple[DeveloperMessageField]
+    undocumented_fields: Tuple[UndocumentedMessageField]
 
     @staticmethod
-    def developer_fields_from_record(record: Record, message_definition: MessageDefinition) -> List[DeveloperMessageField]:
+    def developer_fields_from_record(record: Record, message_definition: MessageDefinition) -> Tuple[DeveloperMessageField]:
         if record.content.developer_fields:
             return []
         else:
             return []
 
     @staticmethod
-    def undocumented_fields_from_record(record: Record, message_definition: MessageDefinition) -> List[UndocumentedMessageField]:
+    def undocumented_fields_from_record(record: Record, message_definition: MessageDefinition) -> Tuple[UndocumentedMessageField]:
         decoded_field_numbers = [field_definition.number for field_definition in message_definition.field_definitions]
 
         return []
 
 
-@dataclass
+@dataclass(frozen=True)
 class ManufacturerSpecificMessage(Message):
     @staticmethod
     def from_record(record: Record, message_definition: MessageDefinition):
@@ -131,7 +143,7 @@ class ManufacturerSpecificMessage(Message):
         return ManufacturerSpecificMessage(developer_fields, undocumented_fields)
 
 
-@dataclass
+@dataclass(frozen=True)
 class UndocumentedMessage(Message):
     @staticmethod
     def from_record(record: Record, message_definition: MessageDefinition):

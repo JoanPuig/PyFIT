@@ -155,7 +155,7 @@ class CodeGenerator:
 
     def generate_imports(self):
         cw = self.code_writer
-        cw.write('from typing import List')
+        cw.write('from typing import Tuple')
         cw.write('from enum import Enum, auto')
         cw.write('from dataclasses import dataclass')
         cw.new_line()
@@ -283,7 +283,7 @@ class CodeGenerator:
 
         for message in messages:
             message_name = CodeGenerator.capitalize_type_name(message.name)
-            cw.write('@dataclass')
+            cw.write('@dataclass(frozen=True)')
             cw.write('# FIT message name: {}', message.name)
             cw.write('class {}(Message):', message_name)
             cw.indent()
@@ -303,7 +303,7 @@ class CodeGenerator:
                     resolved_field['type'] = 'bool'
 
                 if not resolved_field['is_scalar'] and not resolved_field['type'] == 'String':
-                    resolved_field['type'] = 'List[{}]'.format(resolved_field['type'])
+                    resolved_field['type'] = 'Tuple[{}]'.format(resolved_field['type'])
 
                 resolved_fields.append(resolved_field)
 

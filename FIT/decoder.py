@@ -4,7 +4,7 @@
 
 import importlib
 import warnings
-from typing import List, Dict, Union, Optional
+from typing import List, Dict, Union, Optional, Tuple
 
 import FIT
 from FIT.base_types import UnsignedInt8, UnsignedInt16, UnsignedInt32, UnsignedInt64, BASE_TYPE_NUMBER_TO_CLASS
@@ -154,14 +154,14 @@ class Decoder:
 
         return FileHeader(header_size, protocol_version, profile_version, data_size, data_type, crc)
 
-    def decode_records(self, data_size: UnsignedInt32) -> List[Record]:
+    def decode_records(self, data_size: UnsignedInt32) -> Tuple[Record]:
         initial_bytes_read = self.reader.bytes_read
 
         records = []
         while self.reader.bytes_read - initial_bytes_read < data_size:
             records.append(self.decode_record())
 
-        return records
+        return tuple(records)
 
     def decode_record(self) -> Record:
         header_byte = self.reader.read_byte()
@@ -219,10 +219,10 @@ class Decoder:
         global_message_number = UnsignedInt16.from_bytes(self.reader.read_bytes(2))
 
         number_of_fields = self.reader.read_byte()
-        field_definitions = [self.decode_field_definition() for _ in range(0, number_of_fields)]
+        field_definitions = tuple([self.decode_field_definition() for _ in range(0, number_of_fields)])
 
         number_of_developer_fields = self.reader.read_byte() if header.has_developer_data else 0
-        developer_field_definitions = [self.decode_field_definition() for _ in range(0, number_of_developer_fields)]
+        developer_field_definitions = tuple([self.decode_field_definition() for _ in range(0, number_of_developer_fields)])
 
         definition = MessageDefinition(reserved_byte, architecture, global_message_number, field_definitions, developer_field_definitions)
         self.message_definitions[header.local_message_type] = definition
@@ -255,8 +255,8 @@ class Decoder:
         if not message_definition:
             raise FITFileFormatError('Unable to find local message type definition {}'.format(header.local_message_type))
 
-        fields = [self.decode_field(field_definition) for field_definition in message_definition.field_definitions]
-        developer_fields = [self.decode_field(developer_field_definition) for developer_field_definition in message_definition.developer_field_definitions]
+        fields = tuple([self.decode_field(field_definition) for field_definition in message_definition.field_definitions])
+        developer_fields = tuple([self.decode_field(developer_field_definition) for developer_field_definition in message_definition.developer_field_definitions])
         return MessageContent(fields, developer_fields)
 
     def decode_crc(self, allow_zero) -> UnsignedInt16:
