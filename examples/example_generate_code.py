@@ -2,7 +2,7 @@
 # See LICENSE for details
 
 
-from FIT.codegen import CodeGenerator
+from FIT.codegen import TypeCodeGenerator, MessageCodeGenerator
 from FIT.profile import Profile
 
 
@@ -12,14 +12,17 @@ def main():
     # Modify to fit your directory setup
     sdk_file = './data/SDK/FitSDKRelease_Latest.zip'
     types_file = './FIT/types.py'
+    messages_file = './FIT/messages.py'
 
     profile = Profile.from_sdk_zip(sdk_file)
 
-    # This will generate the code and print it
-    print(CodeGenerator.generate(profile))
+    # This will generate the code but only print it
+    # print(TypeCodeGenerator.generate(profile))
+    # print(MessageCodeGenerator.generate(profile))
 
-    # If you actually want to write the file to disk
-    CodeGenerator.generate(profile, types_file)
+    # Generates the code and writes the file to disk
+    TypeCodeGenerator.generate(profile, types_file)
+    MessageCodeGenerator.generate(profile, messages_file)
 
 
 if __name__ == "__main__":

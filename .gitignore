@@ -112,3 +112,4 @@ venv.bak/
 /.idea/modules.xml
 /.idea/PyFIT.iml
 /.idea/vcs.xml
+/FIT/messages.py

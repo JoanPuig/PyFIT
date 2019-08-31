@@ -5,6 +5,7 @@
 import importlib
 import warnings
 from typing import Dict, Union, Optional, Tuple
+from enum import Enum
 
 import FIT
 from FIT.base_types import UnsignedInt8, UnsignedInt16, UnsignedInt32, UnsignedInt64, BASE_TYPE_NUMBER_TO_CLASS
@@ -311,12 +312,12 @@ class Decoder:
                 if global_message_number not in MesgNum._value2member_map_:
                     is_manufacturer_specific = MesgNum.MfgRangeMin.value <= global_message_number <= MesgNum.MfgRangeMax.value
                     if is_manufacturer_specific:
-                        warning_message = 'Definition references MesgNum {} which is manufacturer specific'.format(global_message_number)  # TODO manufacturer specific plugin
+                        warning_message = 'DefinitionMessage references MesgNum {} which is manufacturer specific'.format(global_message_number)  # TODO manufacturer specific plugin
                         if warning_message not in warned_manufacturer_specific_messages:
                             warnings.warn(warning_message, FITFileContentWarning)
                             warned_manufacturer_specific_messages.append(warning_message)
                     else:
-                        error_message = 'Definition references MesgNum {} which is not documented'.format(global_message_number)
+                        error_message = 'DefinitionMessage references MesgNum {} which is not documented'.format(global_message_number)
                         if error_on_undocumented_message:
                             raise FITFileContentError(error_message)
                         else:
@@ -339,7 +340,7 @@ class Decoder:
                 else:
                     if message_definition.global_message_number in MesgNum._value2member_map_:
                         global_message_number = MesgNum(message_definition.global_message_number)
-                        mod = importlib.import_module('FIT.types')
+                        mod = importlib.import_module('FIT.messages')
                         message_class = getattr(mod, global_message_number.name)
                         class_name = global_message_number.name
                     else:
@@ -361,3 +362,30 @@ class Decoder:
                 messages.append(message)
 
         return tuple(messages)
+
+
+def extract_value(message_name: str, field_name: str, number: UnsignedInt8, field_map: Dict[UnsignedInt8, Tuple[int, FieldDefinition]], fields: Tuple[RecordField], field_type, error_on_invalid_enum_value: bool = True):
+    if number:
+        if number in field_map:
+            index, definition = field_map[number]
+            value = fields[index].value
+            if not field_type:
+                return value
+            if issubclass(field_type, Enum):
+                if value in field_type._value2member_map_:
+                    return field_type(value)
+                else:
+                    error_message = 'Field "{}" of type "{}" in message "{}" has unrecognized value "{}"'.format(field_name, field_type.__name__, message_name, value)
+                    if error_on_invalid_enum_value:
+                        raise FITFileContentError(error_message)
+                    else:
+                        warnings.warn(error_message, FITFileContentWarning)
+            else:
+                if issubclass(field_type, BASE_TYPE_NUMBER_TO_CLASS[definition.base_type]):
+                    return field_type(value)
+                else:
+                    raise FITFileContentError('Field "{}" of type "{}" in message "{}" has been decoded with an incompatible type "{}"'.format(field_name, field_type.__name__, message_name, value.__class__.__name__))
+        else:
+            return None
+    else:
+        return None
