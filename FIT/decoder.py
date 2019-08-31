@@ -8,16 +8,16 @@ from typing import List, Dict, Union, Optional, Tuple
 
 import FIT
 from FIT.base_types import UnsignedInt8, UnsignedInt16, UnsignedInt32, UnsignedInt64, BASE_TYPE_NUMBER_TO_CLASS
-from FIT.model import MessageDefinition, File, FileHeader, Record, NormalRecordHeader, CompressedTimestampRecordHeader, FieldDefinition, Architecture, RecordField, MessageContent, Message, UndocumentedMessage
+from FIT.model import MessageDefinition, File, FileHeader, Record, NormalRecordHeader, CompressedTimestampRecordHeader, FieldDefinition, Architecture, RecordField, MessageContent, Message, UndocumentedMessage, ManufacturerSpecificMessage
 
 import numpy as np
 
 
-class FITFileFormatError(Exception):
+class FITFileContentError(Exception):
     pass
 
 
-class FITFileFormatWarning(Warning):
+class FITFileContentWarning(Warning):
     pass
 
 
@@ -25,7 +25,7 @@ class UnsupportedFITFeature(Exception):
     pass
 
 
-class FITTypesNotFoundError(Exception):
+class FITGeneratedCodeNotFoundError(Exception):
     pass
 
 
@@ -84,7 +84,7 @@ class ByteReader:
 
     def read_byte(self) -> UnsignedInt8:
         if self.bytes_left() == 0:
-            raise FITFileFormatError('Unexpected end of file encountered')
+            raise FITFileContentError('Unexpected end of file encountered')
 
         byte = UnsignedInt8(self.raw_bytes[self.bytes_read])
         self.bytes_read = self.bytes_read + 1
@@ -142,10 +142,10 @@ class Decoder:
         data_type = ''.join([chr(self.reader.read_byte()) for _ in range(0, 4)])
 
         if header_size not in [12, 14]:
-            raise FITFileFormatError('Invalid header size, Expected: 12 or 14, read: {}'.format(header_size))
+            raise FITFileContentError('Invalid header size, Expected: 12 or 14, read: {}'.format(header_size))
 
         if data_type != '.FIT':
-            raise FITFileFormatError('Invalid header text. Expected: ".FIT", read: "{}}"'.format(data_type))
+            raise FITFileContentError('Invalid header text. Expected: ".FIT", read: "{}}"'.format(data_type))
 
         if header_size == 14:
             crc = self.decode_crc(True)
@@ -185,7 +185,7 @@ class Decoder:
         reserved_bit = Decoder.bit_get(header, Decoder.RESERVED_BIT_POSITION)
 
         if reserved_bit:
-            raise FITFileFormatError('Reserved bit on record header is 1, expected 0')
+            raise FITFileContentError('Reserved bit on record header is 1, expected 0')
 
         local_message_type = header & UnsignedInt8(15)  # 1st to 4th bits
 
@@ -205,7 +205,7 @@ class Decoder:
         reserved_bits = type_byte & UnsignedInt8(96)  # 6th to 7th bits
 
         if reserved_bits:
-            raise FITFileFormatError('Invalid FieldDefinition reserved bits, expected 0, read {}'.format(reserved_bits))
+            raise FITFileContentError('Invalid FieldDefinition reserved bits, expected 0, read {}'.format(reserved_bits))
 
         return FieldDefinition(number, size, endian_ability, base_type, reserved_bits)
 
@@ -213,7 +213,7 @@ class Decoder:
         reserved_byte = self.reader.read_byte()
 
         if reserved_byte:
-            raise FITFileFormatError('Reserved byte after record header is not 0')
+            raise FITFileContentError('Reserved byte after record header is not 0')
 
         architecture = Architecture(self.reader.read_byte())
         global_message_number = UnsignedInt16.from_bytes(self.reader.read_bytes(2))
@@ -236,15 +236,15 @@ class Decoder:
 
         if field_definition.number == Decoder.MESSAGE_INDEX_FIELD_NUMBER:
             if field_definition.base_type != UnsignedInt16.metadata.base_type_number:
-                raise FITFileFormatError('Message Index field number {} is expected to be of type {}, {} found', Decoder.MESSAGE_INDEX_FIELD_NUMBER, UnsignedInt16.__name__, type_class.__name__)
+                raise FITFileContentError('Message Index field number {} is expected to be of type {}, {} found', Decoder.MESSAGE_INDEX_FIELD_NUMBER, UnsignedInt16.__name__, type_class.__name__)
 
         if field_definition.number == Decoder.PART_INDEX_FIELD_NUMBER:
             if field_definition.base_type != UnsignedInt32.metadata.base_type_number:
-                raise FITFileFormatError('Part Index field number {} is expected to be of type {}, {} found', Decoder.MESSAGE_INDEX_FIELD_NUMBER, UnsignedInt32.__name__, type_class.__name__)
+                raise FITFileContentError('Part Index field number {} is expected to be of type {}, {} found', Decoder.MESSAGE_INDEX_FIELD_NUMBER, UnsignedInt32.__name__, type_class.__name__)
 
         if field_definition.number == Decoder.TIMESTAMP_FIELD_NUMBER:
             if field_definition.base_type != UnsignedInt32.metadata.base_type_number:
-                raise FITFileFormatError('Timestamp field number {} is expected to be of type {}, {} found', Decoder.TIMESTAMP_FIELD_NUMBER, UnsignedInt32.__name__, type_class.__name__)
+                raise FITFileContentError('Timestamp field number {} is expected to be of type {}, {} found', Decoder.TIMESTAMP_FIELD_NUMBER, UnsignedInt32.__name__, type_class.__name__)
             self.most_recent_timestamp = decoded_value
 
         return RecordField(decoded_value)
@@ -253,7 +253,7 @@ class Decoder:
         message_definition = self.message_definitions.get(header.local_message_type)
 
         if not message_definition:
-            raise FITFileFormatError('Unable to find local message type definition {}'.format(header.local_message_type))
+            raise FITFileContentError('Unable to find local message type definition {}'.format(header.local_message_type))
 
         fields = tuple([self.decode_field(field_definition) for field_definition in message_definition.field_definitions])
         developer_fields = tuple([self.decode_field(developer_field_definition) for developer_field_definition in message_definition.developer_field_definitions])
@@ -269,7 +269,7 @@ class Decoder:
             return expected_crc
 
         if computed_crc != expected_crc:
-            raise FITFileFormatError('Invalid CRC. Expected: {}, computed: {}'.format(expected_crc, computed_crc))
+            raise FITFileContentError('Invalid CRC. Expected: {}, computed: {}'.format(expected_crc, computed_crc))
 
         return expected_crc
 
@@ -290,17 +290,19 @@ class Decoder:
         return decoder.decode_file()
 
     @staticmethod
-    def decode_fit_messages(file_name: str, error_on_undocumented_message: bool = False) -> Tuple[Message]:
+    def decode_fit_messages(file_name: str, error_on_undocumented_message: bool = False, error_on_undocumented_field: bool = False) -> Tuple[Message]:
         # Reads the FIT file
         file = Decoder.decode_fit_file(file_name)
 
         try:
             from FIT.types import MesgNum
         except ModuleNotFoundError:
-            raise FITTypesNotFoundError('Unable to load FIT.types, make sure you have executed the code generation first')
+            raise FITGeneratedCodeNotFoundError('Unable to load FIT.types, make sure you have executed the code generation first')
 
         messages = []
         definitions = {}
+        warned_undocumented_MesgNum = []
+        warned_undocumented_fields = []
         for record in file.records:
             if record.header.is_definition_message:
                 global_message_number = record.content.global_message_number
@@ -310,28 +312,40 @@ class Decoder:
                 else:
                     error_message = 'Definition references MesgNum {} which is not documented'.format(global_message_number)
                     if error_on_undocumented_message:
-                        raise FITFileFormatError(error_message)
+                        raise FITFileContentError(error_message)
                     else:
-                        warnings.warn(error_message, FITFileFormatWarning)
+                        if error_message not in warned_undocumented_MesgNum:
+                            warnings.warn(error_message, FITFileContentWarning)
+                            warned_undocumented_MesgNum.append(error_message)
                         definitions[record.header.local_message_type] = None
 
             else:
                 local_message_type = record.header.local_message_type
 
                 if local_message_type not in definitions:
-                    raise FITFileFormatError('Local message type {} has not been previously defined'.format(local_message_type))
+                    raise FITFileContentError('Local message type {} has not been previously defined'.format(local_message_type))
 
                 message_definition = definitions[local_message_type]
 
                 if message_definition:
                     is_manufacturer_specific = MesgNum.MfgRangeMin.value <= message_definition.global_message_number <= MesgNum.MfgRangeMax.value
                     if is_manufacturer_specific:
-                        message = message_class.from_record(record, message_definition)
+                        message = ManufacturerSpecificMessage.from_record(record, message_definition)  # TODO custom manufacturer specific messages
                     else:
                         global_message_number = MesgNum(message_definition.global_message_number)
                         mod = importlib.import_module('FIT.types')
                         message_class = getattr(mod, global_message_number.name)
                         message = message_class.from_record(record, message_definition)
+
+                        for undocumented_field in message.undocumented_fields:
+                            error_message = '{} message has undocumented field number {}'.format(global_message_number.name, undocumented_field.definition.number)
+
+                            if error_on_undocumented_field:
+                                raise FITFileContentError(error_message)
+                            else:
+                                if error_message not in warned_undocumented_fields:
+                                    warnings.warn(error_message, FITFileContentWarning)
+                                    warned_undocumented_fields.append(error_message)
                 else:
                     message = UndocumentedMessage.from_record(record, None)
                 messages.append(message)

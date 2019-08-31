@@ -13,15 +13,15 @@ import xlrd
 from FIT import duplicates
 
 
-class UnexpectedProfileContentError(Exception):
+class ProfileContentError(Exception):
     pass
 
 
-class UnexpectedProfileContentWarning(Warning):
+class ProfileContentWarning(Warning):
     pass
 
 
-class UnexpectedSDKContentError(Exception):
+class SDKContentError(Exception):
     pass
 
 
@@ -140,7 +140,7 @@ class Profile:
         file_hash = Profile.sha256(file_name)
 
         if file_hash not in SDK_ZIP_SHA256:
-            raise UnexpectedSDKContentError('The SHA of the input file {} does not match the known SHAs of any supported SDK versions. FYI, the latest supported version is: {}'.format(file_name, ProfileVersion.current().name))
+            raise SDKContentError('The SHA of the input file {} does not match the known SHAs of any supported SDK versions. FYI, the latest supported version is: {}'.format(file_name, ProfileVersion.current().name))
 
         version = SDK_ZIP_SHA256[file_hash]
 
@@ -163,10 +163,10 @@ class Profile:
             if expected_sheet in sheet_names:
                 sheet_names.remove(expected_sheet)
             else:
-                raise UnexpectedProfileContentError('Profile {} file does not contain a "{}" sheet'.format(version.name, expected_sheet))
+                raise ProfileContentError('Profile {} file does not contain a "{}" sheet'.format(version.name, expected_sheet))
 
         if sheet_names:
-            raise UnexpectedProfileContentError('Profile {} file contains unexpected sheets: {}'.format(version.name, sheet_names))
+            raise ProfileContentError('Profile {} file contains unexpected sheets: {}'.format(version.name, sheet_names))
 
         types_sheet = book.sheet_by_name('Types')
         raw_types = Profile.extract_data(types_sheet)
@@ -175,7 +175,7 @@ class Profile:
 
         duplicate_type_names = duplicates([type_def.name for type_def in types])
         if duplicate_type_names:
-            raise UnexpectedProfileContentError('Profile {} has duplicate type names: {}'.format(version.name, ','.join(duplicate_type_names)))
+            raise ProfileContentError('Profile {} has duplicate type names: {}'.format(version.name, ','.join(duplicate_type_names)))
 
         messages_sheet = book.sheet_by_name('Messages')
         raw_messages = Profile.extract_data(messages_sheet)
@@ -185,7 +185,7 @@ class Profile:
         message_names = [message.name for message in messages]
         duplicate_message_types = duplicates(message_names)
         if duplicate_message_types:
-            raise UnexpectedProfileContentError('Profile {} has duplicate message types: {}'.format(version.name, ','.join(duplicate_message_types)))
+            raise ProfileContentError('Profile {} has duplicate message types: {}'.format(version.name, ','.join(duplicate_message_types)))
 
         for type_def in types:
             if type_def.name == 'mesg_num':
@@ -198,9 +198,9 @@ class Profile:
                 if missing_message_type:
                     error_message = 'Profile {} has an entry in mesg_num for [{}] but no corresponding message definition'.format(version.name, ', '.join(missing_message_type))
                     if strict:
-                        raise UnexpectedProfileContentError(error_message)
+                        raise ProfileContentError(error_message)
                     else:
-                        warnings.warn(error_message, UnexpectedProfileContentWarning)
+                        warnings.warn(error_message, ProfileContentWarning)
 
                 missing_mesg_num_value = []
                 for message_name in message_names:
@@ -210,9 +210,9 @@ class Profile:
                 if missing_mesg_num_value:
                     error_message = 'Profile {} has message definition for [{}] but no corresponding value in mesg_num'.format(version.name, ', '.join(missing_mesg_num_value))
                     if strict:
-                        raise UnexpectedProfileContentError(error_message)
+                        raise ProfileContentError(error_message)
                     else:
-                        warnings.warn(error_message, UnexpectedProfileContentWarning)
+                        warnings.warn(error_message, ProfileContentWarning)
 
                 break
 
