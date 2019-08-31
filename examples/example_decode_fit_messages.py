@@ -11,9 +11,9 @@ def main():
     # Modify to fit your directory setup
     file_name = './data/FIT/MY_ACTIVITY_FILE.fit'
 
-    file = Decoder.decode_fit_messages(file_name)
+    messages = Decoder.decode_fit_messages(file_name)
 
-    print(file)
+    print(messages)
 
 
 if __name__ == "__main__":
