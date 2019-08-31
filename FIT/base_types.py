@@ -55,9 +55,9 @@ def from_bytes(c, raw_bytes: bytes):
     array = np.frombuffer(raw_bytes, dtype=c.metadata.numpy_type)
 
     if len(array) == 1:
-        return array[0]
+        return c(array[0])
     else:
-        return array.tolist()
+        return [c(v) for v in array.tolist()]
 
 
 class FITEnum(np.uint8, BaseType):

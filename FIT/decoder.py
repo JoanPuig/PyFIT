@@ -6,6 +6,7 @@ import importlib
 import warnings
 from typing import List, Dict, Union, Optional
 
+import FIT
 from FIT.base_types import UnsignedInt8, UnsignedInt16, UnsignedInt32, UnsignedInt64, BASE_TYPE_NUMBER_TO_CLASS
 from FIT.model import MessageDefinition, File, FileHeader, Record, NormalRecordHeader, CompressedTimestampRecordHeader, FieldDefinition, Architecture, RecordField, MessageContent, Message, UndocumentedMessage
 
@@ -211,7 +212,7 @@ class Decoder:
             raise FITFileFormatError('Reserved byte after record header is not 0')
 
         architecture = Architecture(self.reader.read_byte())
-        global_message_number = self.reader.read_double_byte()
+        global_message_number = UnsignedInt16.from_bytes(self.reader.read_bytes(2))
 
         number_of_fields = self.reader.read_byte()
         field_definitions = [self.decode_field_definition() for _ in range(0, number_of_fields)]
@@ -296,7 +297,8 @@ class Decoder:
         for record in file.records:
             if record.header.is_definition_message:
                 global_message_number = record.content.global_message_number
-                if global_message_number in MesgNum._value2member_map_:
+                is_manufacturer_specific = MesgNum.MfgRangeMin.value <= global_message_number <= MesgNum.MfgRangeMax.value
+                if global_message_number in MesgNum._value2member_map_ or is_manufacturer_specific:
                     definitions[record.header.local_message_type] = record.content
                 else:
                     error_message = 'Definition references MesgNum {} which is not documented'.format(global_message_number)
@@ -315,10 +317,14 @@ class Decoder:
                 message_definition = definitions[local_message_type]
 
                 if message_definition:
-                    global_message_number = MesgNum(message_definition.global_message_number)
-                    mod = importlib.import_module('FIT.types')
-                    message_class = getattr(mod, global_message_number.name)
-                    message = message_class.from_record(record, message_definition)
+                    is_manufacturer_specific = MesgNum.MfgRangeMin.value <= message_definition.global_message_number <= MesgNum.MfgRangeMax.value
+                    if is_manufacturer_specific:
+                        message = message_class.from_record(record, message_definition)
+                    else:
+                        global_message_number = MesgNum(message_definition.global_message_number)
+                        mod = importlib.import_module('FIT.types')
+                        message_class = getattr(mod, global_message_number.name)
+                        message = message_class.from_record(record, message_definition)
                 else:
                     message = UndocumentedMessage.from_record(record, None)
                 messages.append(message)

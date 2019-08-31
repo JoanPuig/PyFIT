@@ -123,10 +123,19 @@ class Message(ABC):
 
 
 @dataclass
-class UndocumentedMessage(Message):
+class ManufacturerSpecificMessage(Message):
     @staticmethod
     def from_record(record: Record, message_definition: MessageDefinition):
         developer_fields = Message.developer_fields_from_record(record, message_definition)
         undocumented_fields = Message.undocumented_fields_from_record(record, message_definition)
+        return ManufacturerSpecificMessage(developer_fields, undocumented_fields)
+
+
+@dataclass
+class UndocumentedMessage(Message):
+    @staticmethod
+    def from_record(record: Record, message_definition: MessageDefinition):
+        developer_fields = []
+        undocumented_fields = []  # TODO all fields are undocumented Message.undocumented_fields_from_record(record, message_definition)
         return UndocumentedMessage(developer_fields, undocumented_fields)
 

@@ -1,7 +1,6 @@
 # Copyright 2019 Joan Puig
 # See LICENSE for details
-
-
+import warnings
 from dataclasses import dataclass
 from enum import Enum
 from typing import List, Union
@@ -14,11 +13,15 @@ import xlrd
 from FIT import duplicates
 
 
-class UnexpectedProfileContent(Exception):
+class UnexpectedProfileContentError(Exception):
     pass
 
 
-class UnexpectedSDKContent(Exception):
+class UnexpectedProfileContentWarning(Warning):
+    pass
+
+
+class UnexpectedSDKContentError(Exception):
     pass
 
 
@@ -125,20 +128,20 @@ class Profile:
         return algo.hexdigest().upper()
 
     @staticmethod
-    def from_sdk_zip(file_name: str):  # TODO type check  -> Profile:
+    def from_sdk_zip(file_name: str, strict: bool = False):  # TODO type check  -> Profile:
         file_hash = Profile.sha256(file_name)
 
         if file_hash not in SDK_ZIP_SHA256:
-            raise UnexpectedSDKContent('The SHA of the input file {} does not match the known SHAs of any supported SDK versions. FYI, the latest supported version is: {}'.format(file_name, ProfileVersion.current().name))
+            raise UnexpectedSDKContentError('The SHA of the input file {} does not match the known SHAs of any supported SDK versions. FYI, the latest supported version is: {}'.format(file_name, ProfileVersion.current().name))
 
         version = SDK_ZIP_SHA256[file_hash]
 
         zf = zipfile.ZipFile(file_name, 'r')
         zip_file_content = zf.read('Profile.xlsx')
-        return Profile.from_xlsx(zip_file_content, version)
+        return Profile.from_xlsx(zip_file_content, version, strict)
 
     @staticmethod
-    def from_xlsx(file: str, version: ProfileVersion):  # TODO type check -> Profile:
+    def from_xlsx(file: str, version: ProfileVersion, strict: bool = False):  # TODO type check -> Profile:
         if type(file) == str:
             book = xlrd.open_workbook(file)
         else:
@@ -152,10 +155,10 @@ class Profile:
             if expected_sheet in sheet_names:
                 sheet_names.remove(expected_sheet)
             else:
-                raise UnexpectedProfileContent('Profile file does not contain a "{}" sheet'.format(expected_sheet))
+                raise UnexpectedProfileContentError('Profile file does not contain a "{}" sheet'.format(expected_sheet))
 
         if sheet_names:
-            raise UnexpectedProfileContent('Profile file contains unexpected sheets: {}'.format(sheet_names))
+            raise UnexpectedProfileContentError('Profile file contains unexpected sheets: {}'.format(sheet_names))
 
         types_sheet = book.sheet_by_name('Types')
         raw_types = Profile.extract_data(types_sheet)
@@ -164,7 +167,7 @@ class Profile:
 
         duplicate_type_names = duplicates([type_def.name for type_def in types])
         if duplicate_type_names:
-            raise UnexpectedProfileContent('Profile has duplicate type names: {}'.format(','.join(duplicate_type_names)))
+            raise UnexpectedProfileContentError('Profile has duplicate type names: {}'.format(','.join(duplicate_type_names)))
 
         messages_sheet = book.sheet_by_name('Messages')
         raw_messages = Profile.extract_data(messages_sheet)
@@ -174,16 +177,35 @@ class Profile:
         message_names = [message.name for message in messages]
         duplicate_message_types = duplicates(message_names)
         if duplicate_message_types:
-            raise UnexpectedProfileContent('Profile has duplicate message types: {}'.format(','.join(duplicate_message_types)))
+            raise UnexpectedProfileContentError('Profile has duplicate message types: {}'.format(','.join(duplicate_message_types)))
 
-        missing = []
         for type_def in types:
             if type_def.name == 'mesg_num':
+                missing_message_type = []
+
                 for value in type_def.values:
                     if (value.name not in message_names) and (value.name not in ['mfg_range_min', 'mfg_range_max']):
-                        missing.append('{} ({})'.format(value.name, value.value))
+                        missing_message_type.append('{} ({})'.format(value.name, value.value))
 
-        # if missing:
-        #    raise UnexpectedProfileContent('Profile has entry in mesg_num for [{}] but no corresponding message definition'.format(', '.join(missing)))
+                if missing_message_type:
+                    error_message = 'Profile has entry in mesg_num for [{}] but no corresponding message definition'.format(', '.join(missing_message_type))
+                    if strict:
+                        raise UnexpectedProfileContentError(error_message)
+                    else:
+                        warnings.warn(error_message, UnexpectedProfileContentWarning)
+
+                missing_mesg_num_value = []
+                for message_name in message_names:
+                    if message_name not in [value.name for value in type_def.values]:
+                        missing_mesg_num_value.append(message_name)
+
+                if missing_mesg_num_value:
+                    error_message = 'Profile has message definition for [{}] but no corresponding value in mesg_num'.format(', '.join(missing_mesg_num_value))
+                    if strict:
+                        raise UnexpectedProfileContentError(error_message)
+                    else:
+                        warnings.warn(error_message, UnexpectedProfileContentWarning)
+
+                break
 
         return Profile(version, types, messages)
