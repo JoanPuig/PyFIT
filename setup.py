@@ -1,3 +1,7 @@
+# Copyright 2019 Joan Puig
+# See LICENSE for details
+
+
 from setuptools import setup, find_packages
 
 
