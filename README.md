@@ -5,10 +5,14 @@ PyFIT is a library that allows reading .FIT files into Python.
 As someone that loves playing around with data and code, I felt that being able to decode the files from my activity trackers would motivate me to be more fit. I hope this project encourages people to keep fit.
 
 
+### Running the code ###
+All the example scripts contain a section with directory and file names. Before you run them, make sure you adapt them to match your directory and file setup.
+
+
 ### Getting started ###
 * First, you will need to download the FIT SDK file https://www.thisisant.com/resources/fit/
 * In the SDK zip file there is a Profile.xlsx that has the necessary information on how to generate the FIT message types
-* Generate the code by running [example_generate_code.py](examples/example_generate_code.py). It is important to adjust it to match your directory setup
+* Generate the code by running [example_generate_code.py](examples/example_generate_code.py)
 * You are now ready to go and read some FIT files. Take a look at [example_fit_reader.py](examples/example_fit_reader.py) for how to do that
 
 
