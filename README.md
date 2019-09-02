@@ -13,7 +13,7 @@ All the example scripts contain a section with directory and file names. Before 
 * First, you will need to download the FIT SDK file https://www.thisisant.com/resources/fit/
 * In the SDK zip file there is a Profile.xlsx that has the necessary information on how to generate the FIT message types
 * Generate the code by running [example_generate_code.py](examples/example_generate_code.py)
-* You are now ready to go and read some FIT files. Take a look at [example_fit_reader.py](examples/example_fit_reader.py) for how to do that
+* You are now ready to go and read some FIT files. Take a look at [example_decode_fit_activity.py](examples/example_decode_fit_activity.py) for an example of how to do that
 
 
 ### Under the hood ###
@@ -21,6 +21,8 @@ All the example scripts contain a section with directory and file names. Before 
 * The low lever layer will read the bytes, into a File object (see [example_decode_fit_file.py](examples/example_decode_fit_file.py))
 * In order to help give meaning to the data, Garmin provides the Profiles.xlsx file, which explains the messages (see [example_profile_from_sdk_zip.py](examples/example_profile_from_sdk_zip.py) or [example_profile_from_xlsx.py](examples/example_profile_from_xlsx.py))
 * A code generator is used to generate classes for each one of this message types [example_generate_code.py](examples/example_generate_code.py)
+* The next layer translates those low level Records in the File object into Message objects: [example_decode_fit_messages.py](examples/example_decode_fit_messages.py). Messages can be understood by humas, much better than records can, but are still fairly low level
+* The most user friendly way to analize the data is by using Activity objects. This data is ready to be used as a Pandas dataframe. For an example: [example_decode_fit_activity.py](examples/example_decode_fit_activity.py)
 
 
 ### Device support ###
@@ -33,6 +35,8 @@ We have access to the following devices for testing:
 
 ### Custom data handling ###
 It is possible to customize the way a given message is interpreted. Normally this is useful if you know the meaning of some undocumented messages or fields or would like to do some special processing of the develper fields. See [example_custom_message_handling.py](examples/example_custom_message_handling.py)
+
+It is also possible to have custom activities. 
 
 
 ### Getting your data ###
