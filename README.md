@@ -2,7 +2,7 @@
 PyFIT is a library that allows reading .FIT files into Python.
 
 ### Motivation ###
-As someone that loves playing around with data and code, I felt that being able to decode the files from my activity trackers would motifate me to be more fit. I hope this project encourages people to keep fit.
+As someone that loves playing around with data and code, I felt that being able to decode the files from my activity trackers would motivate me to be more fit. I hope this project encourages people to keep fit.
 
 
 ### Getting started ###
