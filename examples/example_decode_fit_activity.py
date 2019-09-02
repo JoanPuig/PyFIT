@@ -7,5 +7,5 @@ from FIT.decoder import Decoder
 
 
 def main():
-  # TODO
+  # TODO example decode activity
   pass

@@ -1,7 +1,6 @@
 # Copyright 2019 Joan Puig
 # See LICENSE for details
-
-
+import importlib
 import inspect
 import keyword
 from typing import Dict, Iterable, Optional
@@ -218,7 +217,7 @@ class TypeCodeGenerator(CodeGenerator):
 
         cw.new_line()
         cw.write('@staticmethod')
-        cw.write(f'def from_string(unit: str) -> "{Unit}":')
+        cw.write(f'def from_string(unit: str) -> "Unit":')
         cw.indent()
         cw.write('unit_synonyms = {')
         cw.indent()
@@ -260,6 +259,11 @@ class TypeCodeGenerator(CodeGenerator):
 
                 cw.indent()
 
+                has_invalid = False
+                has_invalid_value = False
+                mod = importlib.import_module('FIT.messages')
+                type_class = getattr(mod, BASE_TYPE_NAME_MAP[type_profile.base_type])
+                parent_type_invalid_value = type_class.metadata.invalid_value
                 resolved_values = []
                 for value in type_profile.values:
                     value_name = CodeGenerator.capitalize_type_name(value.name)
@@ -269,8 +273,12 @@ class TypeCodeGenerator(CodeGenerator):
                     if type_name != 'MesgNum' or value_name not in self.missing_message_definitions:
                         if type(value.value) == str:
                             value_str = f'{value.value}'
+                            if int(value.value, 0) == parent_type_invalid_value:
+                                has_invalid_value = True
                         else:
                             value_str = f'{int(value.value):d}'
+                            if int(value.value) == parent_type_invalid_value:
+                                has_invalid_value = True
 
                         resolved_values.append({
                             'value_name': value_name,
@@ -280,9 +288,21 @@ class TypeCodeGenerator(CodeGenerator):
                             'comment': value.comment}
                         )
 
+                        if value_name == 'Invalid':
+                            has_invalid = True
+
                 duplicate_value_names = duplicates([v['value_name'] for v in resolved_values])
                 if duplicate_value_names:
-                    raise CodeGeneratorError(f'Type {type_name} has duplicate value names: {",".join(duplicate_value_names)}')
+                    raise CodeGeneratorError(f'Type {type_name} has duplicate value names: {", ".join(duplicate_value_names)}')
+
+                if not has_invalid and not has_invalid_value:
+                    resolved_values.append({
+                        'value_name': 'Invalid',
+                        'base_type': BASE_TYPE_NAME_MAP[type_profile.base_type],
+                        'value_str': f'{parent_type_invalid_value}',
+                        'original_value_name': 'Invalid',
+                        'comment': 'Invalid value'}
+                    )
 
                 max_name_length = max([len(resolved_value['value_name']) for resolved_value in resolved_values])
                 max_value_length = max([len(resolved_value['value_str']) for resolved_value in resolved_values])

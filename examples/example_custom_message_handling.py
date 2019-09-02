@@ -6,5 +6,5 @@ from FIT.decoder import Decoder
 
 
 def main():
-  # TODO
+  # TODO example custom mesage handling
   pass
