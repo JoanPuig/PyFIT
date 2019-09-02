@@ -3,7 +3,7 @@
 import functools
 from dataclasses import dataclass
 from enum import Enum
-from typing import Tuple, Dict
+from typing import Tuple, Dict, Union
 
 from FIT.base_types import BaseType, UnsignedInt8, UnsignedInt16, UnsignedInt32
 
@@ -152,4 +152,6 @@ class UndocumentedMessage(Message):
         developer_fields = Message.developer_fields_from_record(record, message_definition)
         undocumented_fields = Message.undocumented_fields_from_record(record.content, message_definition, (), error_on_invalid_enum_value)
         return UndocumentedMessage(developer_fields, undocumented_fields)
+
+
 
