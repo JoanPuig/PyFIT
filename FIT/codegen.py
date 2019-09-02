@@ -108,9 +108,9 @@ class CodeGenerator:
         if not name:
             raise CodeGeneratorError('Name is empty')
         if keyword.iskeyword(name):
-            raise CodeGeneratorError('Name {} is a keyword'.format(name))
+            raise CodeGeneratorError(f'Name {name} is a keyword')
         if name[0].isdigit():
-            raise CodeGeneratorError('Name {} starts with a digit'.format(name))
+            raise CodeGeneratorError(f'Name {name} starts with a digit')
 
     @staticmethod
     def generate(code_generator, profile: Profile, output_file: Optional[str] = None) -> str:
@@ -199,7 +199,7 @@ class TypeCodeGenerator(CodeGenerator):
         # The profile file provided in the SDK has inconsistent names for units, the following code cleans them up
         unnecessary_synonyms = [key for key in self.unit_synonyms.keys() if key not in units]
         if unnecessary_synonyms:
-            raise CodeGeneratorError('Synonyms for units not in the profile were provided {}'.format(', '.join(unnecessary_synonyms)))
+            raise CodeGeneratorError(f'Synonyms for units not in the profile were provided {", ".join(unnecessary_synonyms)}')
         # Apply the synonyms
         units = {self.unit_synonyms.get(unit, unit) for unit in units}
 
@@ -214,11 +214,11 @@ class TypeCodeGenerator(CodeGenerator):
         cw.indent()
         for unit in units:
             CodeGenerator.check_valid_name(unit)
-            cw.write('{} = auto()'.format(unit))
+            cw.write(f'{unit} = auto()')
 
         cw.new_line()
         cw.write('@staticmethod')
-        cw.write('def from_string(unit: str):')  # TODO add type hint
+        cw.write(f'def from_string(unit: str) -> "{Unit}":')
         cw.indent()
         cw.write('unit_synonyms = {')
         cw.indent()
@@ -242,21 +242,21 @@ class TypeCodeGenerator(CodeGenerator):
             type_name = CodeGenerator.capitalize_type_name(type_profile.name)
             CodeGenerator.check_valid_name(type_name)
 
-            cw.write('# FIT type name: {}', type_profile.name)
+            cw.write(f'# FIT type name: {type_profile.name}')
             if type_profile.comment:
-                cw.write('# {}', type_profile.comment)
+                cw.write(f'# {type_profile.comment}')
 
             has_named_values = len(type_profile.values) > 0
             if not has_named_values:
-                cw.write('class {}({}):', type_name, BASE_TYPE_NAME_MAP[type_profile.base_type])
+                cw.write(f'class {type_name}({BASE_TYPE_NAME_MAP[type_profile.base_type]}):')
                 cw.indent()
                 cw.write('pass')
 
             else:
                 if type_name in self.free_range_types:
-                    cw.write('class {}({}):', type_name, BASE_TYPE_NAME_MAP[type_profile.base_type])
+                    cw.write(f'class {type_name}({BASE_TYPE_NAME_MAP[type_profile.base_type]}):')
                 else:
-                    cw.write('class {}(Enum):', type_name)
+                    cw.write(f'class {type_name}(Enum):')
 
                 cw.indent()
 
@@ -268,9 +268,9 @@ class TypeCodeGenerator(CodeGenerator):
 
                     if type_name != 'MesgNum' or value_name not in self.missing_message_definitions:
                         if type(value.value) == str:
-                            value_str = "{}".format(value.value)
+                            value_str = f'{value.value}'
                         else:
-                            value_str = '{:d}'.format(int(value.value))
+                            value_str = f'{int(value.value):d}'
 
                         resolved_values.append({
                             'value_name': value_name,
@@ -282,7 +282,7 @@ class TypeCodeGenerator(CodeGenerator):
 
                 duplicate_value_names = duplicates([v['value_name'] for v in resolved_values])
                 if duplicate_value_names:
-                    raise CodeGeneratorError('Type {} has duplicate value names: {}'.format(type_name, ','.join(duplicate_value_names)))
+                    raise CodeGeneratorError(f'Type {type_name} has duplicate value names: {",".join(duplicate_value_names)}')
 
                 max_name_length = max([len(resolved_value['value_name']) for resolved_value in resolved_values])
                 max_value_length = max([len(resolved_value['value_str']) for resolved_value in resolved_values])
@@ -292,7 +292,7 @@ class TypeCodeGenerator(CodeGenerator):
                 for resolved_value in resolved_values:
                     cw.write_fragment(fmt, resolved_value['value_name'], resolved_value['base_type'], resolved_value['value_str'], resolved_value['original_value_name'])
                     if resolved_value['comment']:
-                        cw.write(' - {}', resolved_value['comment'])
+                        cw.write(f' - {resolved_value["comment"]}')
                     else:
                         cw.write('')
 
@@ -340,8 +340,8 @@ class MessageCodeGenerator(CodeGenerator):
         for message in messages:
             message_name = CodeGenerator.capitalize_type_name(message.name)
             cw.write('@dataclass(frozen=True)')
-            cw.write('# FIT message name: {}', message.name)
-            cw.write('class {}(Message):', message_name)
+            cw.write(f'# FIT message name: {message.name}')
+            cw.write(f'class {message_name}(Message):')
             cw.indent()
 
             resolved_fields = []
@@ -360,13 +360,13 @@ class MessageCodeGenerator(CodeGenerator):
                     resolved_field['type'] = 'bool'
 
                 if not resolved_field['is_scalar'] and not resolved_field['type'] == 'String':
-                    resolved_field['type'] = 'Tuple[{}]'.format(resolved_field['type'])
+                    resolved_field['type'] = f'Tuple[{resolved_field["type"]}]'
 
                 resolved_fields.append(resolved_field)
 
             duplicate_field_names = duplicates([v['name'] for v in resolved_fields])
             if duplicate_field_names:
-                raise CodeGeneratorError('Message {} has duplicate value names: {}'.format(message_name, ','.join(duplicate_field_names)))
+                raise CodeGeneratorError(f'Message {message_name} has duplicate value names: {", ".join(duplicate_field_names)}')
 
             max_name_length = max([len(resolved_field['name']) for resolved_field in resolved_fields])
             max_type_length = max([len(resolved_field['type']) for resolved_field in resolved_fields])
@@ -375,14 +375,13 @@ class MessageCodeGenerator(CodeGenerator):
                 CodeGenerator.check_valid_name(resolved_field['name'])
                 cw.write_fragment('{:<' + str(max_name_length) + '} : {:<' + str(max_type_length) + '}', resolved_field['name'], resolved_field['type'])
                 if resolved_field['comment']:
-                    cw.write('    # {}', resolved_field['comment'])
+                    cw.write(f'    # {resolved_field["comment"]}')
                 else:
                     cw.write('')
 
             cw.new_line()
             cw.write('@staticmethod')
-            # cw.write('def from_record(record: Record) -> {}:', message_name) TODO type checking
-            cw.write('def from_record(record: Record, message_definition: MessageDefinition, error_on_invalid_enum_value: bool = True):')
+            cw.write(f'def from_record(record: Record, message_definition: MessageDefinition, error_on_invalid_enum_value: bool = True) ->  "{message_name}":')
             cw.indent()
             cw.write('developer_fields = Message.developer_fields_from_record(record, message_definition, error_on_invalid_enum_value)')
             cw.write('undocumented_fields = Message.undocumented_fields_from_record(record.content, message_definition, ({}), error_on_invalid_enum_value)', ', '.join([str(field.number) for field in message.fields if field.number is not None]))

@@ -143,10 +143,10 @@ class Decoder:
         data_type = ''.join([chr(self.reader.read_byte()) for _ in range(0, 4)])
 
         if header_size not in [12, 14]:
-            raise FITFileContentError('Invalid header size, Expected: 12 or 14, read: {}'.format(header_size))
+            raise FITFileContentError(f'Invalid header size, Expected: 12 or 14, read: {header_size}')
 
         if data_type != '.FIT':
-            raise FITFileContentError('Invalid header text. Expected: ".FIT", read: "{}}"'.format(data_type))
+            raise FITFileContentError(f'Invalid header text. Expected: ".FIT", read: "{data_type}"')
 
         if header_size == 14:
             crc = self.decode_crc(True)
@@ -206,7 +206,7 @@ class Decoder:
         reserved_bits = type_byte & UnsignedInt8(96)  # 6th to 7th bits
 
         if reserved_bits:
-            raise FITFileContentError('Invalid FieldDefinition reserved bits, expected 0, read {}'.format(reserved_bits))
+            raise FITFileContentError(f'Invalid FieldDefinition reserved bits, expected 0, read {reserved_bits}')
 
         return FieldDefinition(number, size, endian_ability, base_type)
 
@@ -254,7 +254,7 @@ class Decoder:
         message_definition = self.message_definitions.get(header.local_message_type)
 
         if not message_definition:
-            raise FITFileContentError('Unable to find local message type definition {}'.format(header.local_message_type))
+            raise FITFileContentError(f'Unable to find local message type definition {header.local_message_type}')
 
         fields = tuple([self.decode_field(field_definition) for field_definition in message_definition.field_definitions])
         developer_fields = tuple([self.decode_field(developer_field_definition) for developer_field_definition in message_definition.developer_field_definitions])
@@ -270,7 +270,7 @@ class Decoder:
             return expected_crc
 
         if computed_crc != expected_crc:
-            raise FITFileContentError('Invalid CRC. Expected: {}, computed: {}'.format(expected_crc, computed_crc))
+            raise FITFileContentError(f'Invalid CRC. Expected: {expected_crc}, computed: {computed_crc}')
 
         return expected_crc
 
@@ -312,12 +312,12 @@ class Decoder:
                 if global_message_number not in MesgNum._value2member_map_:
                     is_manufacturer_specific = MesgNum.MfgRangeMin.value <= global_message_number <= MesgNum.MfgRangeMax.value
                     if is_manufacturer_specific:
-                        warning_message = 'DefinitionMessage references MesgNum {} which is manufacturer specific'.format(global_message_number)  # TODO manufacturer specific plugin
+                        warning_message = f'DefinitionMessage references MesgNum {global_message_number} which is manufacturer specific'
                         if warning_message not in warned_manufacturer_specific_messages:
                             warnings.warn(warning_message, FITFileContentWarning)
                             warned_manufacturer_specific_messages.append(warning_message)
                     else:
-                        error_message = 'DefinitionMessage references MesgNum {} which is not documented'.format(global_message_number)
+                        error_message = f'DefinitionMessage references MesgNum {global_message_number} which is not documented'
                         if error_on_undocumented_message:
                             raise FITFileContentError(error_message)
                         else:
@@ -329,7 +329,7 @@ class Decoder:
                 local_message_type = record.header.local_message_type
 
                 if local_message_type not in definitions:
-                    raise FITFileContentError('Local message type {} has not been previously defined'.format(local_message_type))
+                    raise FITFileContentError(f'Local message type {local_message_type} has not been previously defined')
 
                 message_definition = definitions[local_message_type]
 
@@ -350,7 +350,7 @@ class Decoder:
                 message = message_class.from_record(record, message_definition, error_on_invalid_enum_value)
 
                 for undocumented_field in message.undocumented_fields:
-                    error_message = '{} message has undocumented field number {}'.format(class_name, undocumented_field.definition.number)
+                    error_message = f'{class_name} message has undocumented field number {undocumented_field.definition.number}'
 
                     if error_on_undocumented_field:
                         raise FITFileContentError(error_message)
@@ -375,7 +375,7 @@ def extract_value(message_name: str, field_name: str, number: UnsignedInt8, fiel
                 if value in field_type._value2member_map_:
                     return field_type(value)
                 else:
-                    error_message = 'Field "{}" of type "{}" in message "{}" has unrecognized value "{}"'.format(field_name, field_type.__name__, message_name, value)
+                    error_message = f'Field "{field_name}" of type "{field_type.__name__}" in message "{message_name, value}" has unrecognized value "{value}"'
                     if error_on_invalid_enum_value:
                         raise FITFileContentError(error_message)
                     else:
@@ -384,7 +384,7 @@ def extract_value(message_name: str, field_name: str, number: UnsignedInt8, fiel
                 if issubclass(field_type, BASE_TYPE_NUMBER_TO_CLASS[definition.base_type]):
                     return field_type(value)
                 else:
-                    raise FITFileContentError('Field "{}" of type "{}" in message "{}" has been decoded with an incompatible type "{}"'.format(field_name, field_type.__name__, message_name, value.__class__.__name__))
+                    raise FITFileContentError(f'Field "{field_name}" of type "{field_type.__name__}" in message "{message_name}" has been decoded with an incompatible type "{value.__class__.__name__}"')
         else:
             return None
     else:

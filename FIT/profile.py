@@ -140,7 +140,7 @@ class Profile:
         file_hash = Profile.sha256(file_name)
 
         if file_hash not in SDK_ZIP_SHA256:
-            raise SDKContentError('The SHA of the input file {} does not match the known SHAs of any supported SDK versions. FYI, the latest supported version is: {}'.format(file_name, ProfileVersion.current().name))
+            raise SDKContentError(f'The SHA of the input file {file_name} does not match the known SHAs of any supported SDK versions. FYI, the latest supported version is: {ProfileVersion.current().name}')
 
         version = SDK_ZIP_SHA256[file_hash]
 
@@ -163,10 +163,10 @@ class Profile:
             if expected_sheet in sheet_names:
                 sheet_names.remove(expected_sheet)
             else:
-                raise ProfileContentError('Profile {} file does not contain a "{}" sheet'.format(version.name, expected_sheet))
+                raise ProfileContentError(f'Profile {version.name} file does not contain a "{expected_sheet}" sheet')
 
         if sheet_names:
-            raise ProfileContentError('Profile {} file contains unexpected sheets: {}'.format(version.name, sheet_names))
+            raise ProfileContentError(f'Profile {version.name} file contains unexpected sheets: {sheet_names}')
 
         types_sheet = book.sheet_by_name('Types')
         raw_types = Profile.extract_data(types_sheet)
@@ -175,7 +175,7 @@ class Profile:
 
         duplicate_type_names = duplicates([type_def.name for type_def in types])
         if duplicate_type_names:
-            raise ProfileContentError('Profile {} has duplicate type names: {}'.format(version.name, ','.join(duplicate_type_names)))
+            raise ProfileContentError(f'Profile {version.name} has duplicate type names: {", ".join(duplicate_type_names)}')
 
         messages_sheet = book.sheet_by_name('Messages')
         raw_messages = Profile.extract_data(messages_sheet)
@@ -185,7 +185,7 @@ class Profile:
         message_names = [message.name for message in messages]
         duplicate_message_types = duplicates(message_names)
         if duplicate_message_types:
-            raise ProfileContentError('Profile {} has duplicate message types: {}'.format(version.name, ','.join(duplicate_message_types)))
+            raise ProfileContentError(f'Profile {version.name} has duplicate message types: {", ".join(duplicate_message_types)}')
 
         for type_def in types:
             if type_def.name == 'mesg_num':
@@ -193,10 +193,10 @@ class Profile:
 
                 for value in type_def.values:
                     if (value.name not in message_names) and (value.name not in ['mfg_range_min', 'mfg_range_max']):
-                        missing_message_type.append('{} ({})'.format(value.name, value.value))
+                        missing_message_type.append(f'{value.name} ({value.value})')
 
                 if missing_message_type:
-                    error_message = 'Profile {} has an entry in mesg_num for [{}] but no corresponding message definition'.format(version.name, ', '.join(missing_message_type))
+                    error_message = f'Profile {version.name} has an entry in mesg_num for [{", ".join(missing_message_type)}] but no corresponding message definition'
                     if strict:
                         raise ProfileContentError(error_message)
                     else:
@@ -208,7 +208,7 @@ class Profile:
                         missing_mesg_num_value.append(message_name)
 
                 if missing_mesg_num_value:
-                    error_message = 'Profile {} has message definition for [{}] but no corresponding value in mesg_num'.format(version.name, ', '.join(missing_mesg_num_value))
+                    error_message = f'Profile {version.name} has message definition for [{", ".join(missing_mesg_num_value)}] but no corresponding value in mesg_num'
                     if strict:
                         raise ProfileContentError(error_message)
                     else:
