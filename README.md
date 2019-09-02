@@ -2,7 +2,7 @@
 PyFIT is a library that allows reading .FIT files into Python.
 
 ### Motivation ###
-As someone that loves playing around with data and code, I felt that being able to decode the files from my activity trackers would motivate me to be more fit. I hope this project encourages people to keep fit.
+As someone that loves playing around with data and code, I felt that being able to decode the files from my activity trackers would motivate me to be more fit. I hope this project does the same for you.
 
 
 ### Running the code ###
@@ -29,6 +29,10 @@ In theory, all the devices that conform to the FIT specification are supported. 
 We have access to the following devices for testing:
 * Garmin Fenix 3 HR
 * Garmin Index Smart Scale
+
+
+### Custom data handling ###
+It is possible to customize the way a given message is interpreted. Normally this is useful if you know the meaning of some undocumented messages or fields or would like to do some special processing of the develper fields. See [example_custom_message_handling.py](examples/example_custom_message_handling.py)
 
 
 ### Getting your data ###
