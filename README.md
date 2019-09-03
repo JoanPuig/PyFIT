@@ -34,9 +34,9 @@ We have access to the following devices for testing:
 
 
 ### Custom data handling ###
-It is possible to customize the way a given message is interpreted. Normally this is useful if you know the meaning of some undocumented messages or fields or would like to do some special processing of the develper fields. See [example_custom_message_handling.py](examples/example_custom_message_handling.py)
+It is possible to customize the way a given message is interpreted. Normally this is useful if you know the meaning of some undocumented messages or fields or would like to do some special processing of the develper fields. See [example_decode_custom_message.py](examples/example_decode_custom_message.py)
 
-It is also possible to have custom activities. 
+It is also possible to have custom activities. For an example of how to do that: [example_decode_custom_activity.py](examples/example_decode_custom_activity.py)
 
 
 ### Getting your data ###
