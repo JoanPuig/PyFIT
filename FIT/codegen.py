@@ -261,7 +261,7 @@ class TypeCodeGenerator(CodeGenerator):
                 has_invalid_value = False
                 mod = importlib.import_module('FIT.base_types')
                 type_class = getattr(mod, BASE_TYPE_NAME_MAP[type_profile.base_type])
-                parent_type_invalid_value = type_class.metadata.invalid_value
+                parent_type_invalid_value = type_class.metadata().invalid_value
                 resolved_values = []
                 for value in type_profile.values:
                     value_name = CodeGenerator.capitalize_type_name(value.name)
@@ -340,6 +340,7 @@ class MessageCodeGenerator(CodeGenerator):
     def generate_imports(self):
         cw = self.code_writer
         cw.write('import warnings')
+        cw.write('import functools')
         cw.write('from typing import Tuple, Dict, Union')
         cw.write('from enum import Enum, auto')
         cw.write('from dataclasses import dataclass')
@@ -414,17 +415,20 @@ class MessageCodeGenerator(CodeGenerator):
             if duplicate_field_names:
                 raise CodeGeneratorError(f'Message {message_name} has duplicate value names: {", ".join(duplicate_field_names)}')
 
-            max_name_length = max([len(resolved_field['name']) for resolved_field in resolved_fields])
-            max_type_length = max([len(resolved_field['type']) for resolved_field in resolved_fields])
+            if resolved_fields:
+                max_name_length = max([len(resolved_field['name']) for resolved_field in resolved_fields])
+                max_type_length = max([len(resolved_field['type']) for resolved_field in resolved_fields])
 
-            for resolved_field in resolved_fields:
-                CodeGenerator.check_valid_name(resolved_field['name'])
-                fmt = '{:<' + str(max_name_length) + '} : {:<' + str(max_type_length) + '}'
-                cw.write_fragment(fmt.format(resolved_field['name'], resolved_field['type']))
-                if resolved_field['comment']:
-                    cw.write(f'    # {resolved_field["comment"]}')
-                else:
-                    cw.write('')
+                for resolved_field in resolved_fields:
+                    CodeGenerator.check_valid_name(resolved_field['name'])
+                    fmt = '{:<' + str(max_name_length) + '} : {:<' + str(max_type_length) + '}'
+                    cw.write_fragment(fmt.format(resolved_field['name'], resolved_field['type']))
+                    if resolved_field['comment']:
+                        cw.write(f'    # {resolved_field["comment"]}')
+                    else:
+                        cw.write('')
+            else:
+                cw.write('pass')
 
             cw.new_line()
             cw.write('@staticmethod')

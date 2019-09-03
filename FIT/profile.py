@@ -80,7 +80,7 @@ class MessageProfile:
     fields: Tuple[FieldProfile]
 
 
-@dataclass
+@dataclass(frozen=True)
 class Profile:
     version: ProfileVersion
     types: Tuple[TypeProfile]
@@ -107,7 +107,7 @@ class Profile:
         return split_content
 
     @staticmethod
-    def parse_type(type_data):
+    def parse_type(type_data) -> TypeProfile:
         return TypeProfile(type_data[0][0], type_data[0][1], type_data[0][4], tuple([Value(*v[2:]) for v in type_data[1:]]))
 
     @staticmethod
@@ -119,11 +119,11 @@ class Profile:
         return array
 
     @staticmethod
-    def parse_message(message_data):
+    def parse_message(message_data) -> MessageProfile:
         return MessageProfile(message_data[0][0], tuple([FieldProfile(*Profile.to_int(f[1:], 0)) for f in message_data[1:]]))
 
     @staticmethod
-    def sha256(file_name: str):
+    def sha256(file_name: str) -> str:
         algo = hashlib.sha256()
 
         with open(file_name, 'rb') as file:
@@ -136,7 +136,7 @@ class Profile:
         return algo.hexdigest().upper()
 
     @staticmethod
-    def from_sdk_zip(file_name: str, strict: bool = False):  # TODO type check  -> Profile:
+    def from_sdk_zip(file_name: str, strict: bool = False) -> "Profile":
         file_hash = Profile.sha256(file_name)
 
         if file_hash not in SDK_ZIP_SHA256:
@@ -149,7 +149,7 @@ class Profile:
         return Profile.from_xlsx(zip_file_content, version, strict)
 
     @staticmethod
-    def from_xlsx(file: str, version: ProfileVersion, strict: bool = False):  # TODO type check -> Profile:
+    def from_xlsx(file: str, version: ProfileVersion, strict: bool = False, add_pad_message_profile: bool = True) -> "Profile":
         if type(file) == str:
             book = xlrd.open_workbook(file)
         else:
@@ -186,6 +186,10 @@ class Profile:
         duplicate_message_types = duplicates(message_names)
         if duplicate_message_types:
             raise ProfileContentError(f'Profile {version.name} has duplicate message types: {", ".join(duplicate_message_types)}')
+
+        if 'pad' not in message_names and add_pad_message_profile:
+            message_names.append('pad')
+            messages.append(MessageProfile('pad', ()))
 
         for type_def in types:
             if type_def.name == 'mesg_num':

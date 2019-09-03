@@ -236,15 +236,15 @@ class Decoder:
         decoded_value = type_class.from_bytes(raw_bytes)
 
         if field_definition.number == Decoder.MESSAGE_INDEX_FIELD_NUMBER:
-            if field_definition.base_type != UnsignedInt16.metadata.base_type_number:
+            if field_definition.base_type != UnsignedInt16.metadata().base_type_number:
                 raise FITFileContentError('Message Index field number {} is expected to be of type {}, {} found', Decoder.MESSAGE_INDEX_FIELD_NUMBER, UnsignedInt16.__name__, type_class.__name__)
 
         if field_definition.number == Decoder.PART_INDEX_FIELD_NUMBER:
-            if field_definition.base_type != UnsignedInt32.metadata.base_type_number:
+            if field_definition.base_type != UnsignedInt32.metadata().base_type_number:
                 raise FITFileContentError('Part Index field number {} is expected to be of type {}, {} found', Decoder.MESSAGE_INDEX_FIELD_NUMBER, UnsignedInt32.__name__, type_class.__name__)
 
         if field_definition.number == Decoder.TIMESTAMP_FIELD_NUMBER:
-            if field_definition.base_type != UnsignedInt32.metadata.base_type_number:
+            if field_definition.base_type != UnsignedInt32.metadata().base_type_number:
                 raise FITFileContentError('Timestamp field number {} is expected to be of type {}, {} found', Decoder.TIMESTAMP_FIELD_NUMBER, UnsignedInt32.__name__, type_class.__name__)
             self.most_recent_timestamp = decoded_value
 
@@ -306,7 +306,7 @@ class Decoder:
         warned_manufacturer_specific_messages = []
         warned_undocumented_fields = []
         for record in file.records:
-            if record.header.is_definition_message:
+            if isinstance(record.content, MessageDefinition):
                 definitions[record.header.local_message_type] = record.content
                 global_message_number = record.content.global_message_number
                 if global_message_number not in MesgNum._value2member_map_:
