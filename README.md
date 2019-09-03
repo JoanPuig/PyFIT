@@ -6,7 +6,7 @@ As someone that loves playing around with data and code, I felt that being able 
 
 
 ### Running the code ###
-All the example scripts contain a section with directory and file names. Before you run them, make sure you adapt them to match your directory and file setup.
+All the example scripts contain a section with configuration, directory and file names, etc. Before you run any scripts, make sure you adapt them to match your setup and desired outcomes.
 
 
 ### Getting started ###
