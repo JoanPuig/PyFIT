@@ -266,7 +266,7 @@ class Profile:
     @staticmethod
     def _from_tables(types_table: DataTable, messages_table:  DataTable, version: ProfileVersion, strict: bool = False, add_pad_message_profile: bool = True) -> "Profile":
         """
-        Low level function that given plain data corresponding to the profile information will create a porfile object
+        Low level function that given plain data corresponding to the profile information will create a profile object
         There are certain inconsistencies in the file that by default are just reported as a warning use strict=True to turn them into errors
         Pad is a special type of message that contains no fields. It has an entry in mseg_num, but no corresponding message definition
         by default a message profile entry will be created for pad, use add_pad_message_profile=False to disable that
@@ -297,42 +297,44 @@ class Profile:
             message_names.append('pad')
             messages.append(MessageProfile('pad', ()))
 
-        # We perform some consistency checks
+        # We find the mesg_num type definition since we know it is an enum like type that contains all the known messages
         mesg_num_def = None
         for type_def in types:
-            if type_def.name == 'mesg_num':  # We know that the mesg_num is an enum like type that contains all the known messages
+            if type_def.name == 'mesg_num':
                 mesg_num_def = type_def
                 break
 
-            if not mesg_num_def:
-                raise ProfileContentError('The profile does not contain a "mesg_num" type definition')
+        # If there is no mesg_num type, the profile data is inconsistent
+        if not mesg_num_def:
+            raise ProfileContentError('The profile does not contain a "mesg_num" type definition')
 
-            missing_message_type = []
-            for value in mesg_num_def.values:
-                if value.name not in message_names:  # If there is no message found
-                    if value.name not in ['mfg_range_min', 'mfg_range_max']:  # And the name is not one of the manufacturer specific range constants
-                        missing_message_type.append(f'{value.name} ({value.value})')  # We add it to the missing messages
+        # We perform some consistency checks
+        missing_message_type = []
+        for value in mesg_num_def.values:
+            if value.name not in message_names:  # If there is no message found
+                if value.name not in ['mfg_range_min', 'mfg_range_max']:  # And the name is not one of the manufacturer specific range constants
+                    missing_message_type.append(f'{value.name} ({value.value})')  # We add it to the missing messages
 
-            # Issue the errors / warnings
-            if missing_message_type:
-                error_message = f'Profile {version.name} has an entry in mesg_num for [{", ".join(missing_message_type)}] but no corresponding message definition'
-                if strict:
-                    raise ProfileContentError(error_message)
-                else:
-                    warnings.warn(error_message, ProfileContentWarning)
+        # Issue the errors / warnings
+        if missing_message_type:
+            error_message = f'Profile {version.name} has an entry in mesg_num for [{", ".join(missing_message_type)}] but no corresponding message definition'
+            if strict:
+                raise ProfileContentError(error_message)
+            else:
+                warnings.warn(error_message, ProfileContentWarning)
 
-            # We check for messages that have been defined, but do not have a corresponding entry in mesg_num
-            missing_mesg_num_value = []
-            for message_name in message_names:
-                if message_name not in [value.name for value in mesg_num_def.values]:
-                    missing_mesg_num_value.append(message_name)
+        # We check for messages that have been defined, but do not have a corresponding entry in mesg_num
+        missing_mesg_num_value = []
+        for message_name in message_names:
+            if message_name not in [value.name for value in mesg_num_def.values]:
+                missing_mesg_num_value.append(message_name)
 
-            # Issue the errors / warnings
-            if missing_mesg_num_value:
-                error_message = f'Profile {version.name} has message definition for [{", ".join(missing_mesg_num_value)}] but no corresponding value in mesg_num'
-                if strict:
-                    raise ProfileContentError(error_message)
-                else:
-                    warnings.warn(error_message, ProfileContentWarning)
+        # Issue the errors / warnings
+        if missing_mesg_num_value:
+            error_message = f'Profile {version.name} has message definition for [{", ".join(missing_mesg_num_value)}] but no corresponding value in mesg_num'
+            if strict:
+                raise ProfileContentError(error_message)
+            else:
+                warnings.warn(error_message, ProfileContentWarning)
 
         return Profile(version, tuple(types), tuple(messages))

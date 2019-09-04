@@ -379,7 +379,8 @@ class MessageCodeGenerator(CodeGenerator):
                     'is_scalar': not field.array,
                     'number': field.number,
                     'offset': field.offset,
-                    'units': field.units
+                    'units': field.units,
+                    'ref_field_name': field.ref_field_name
                 }
 
                 if field.scale:
@@ -441,7 +442,10 @@ class MessageCodeGenerator(CodeGenerator):
             cw.indent()
 
             for rf in resolved_fields:
-                cw.write(f'self.{rf["name"]} = FieldMetadata(\'{rf["name"]}\', {rf["number"]}, {rf["type"]}, {rf["scale"]}, {rf["offset"]}, None)')
+                if rf["number"] is not None:
+                    cw.write(f'self.{rf["name"]} = NormalFieldMetadata(\'{rf["name"]}\', {rf["type"]}, {rf["scale"]}, {rf["offset"]}, None, {rf["number"]})')
+                else:
+                    cw.write(f'self.{rf["name"]} = DynamicFieldMetadata(\'{rf["name"]}\', {rf["type"]}, {rf["scale"]}, {rf["offset"]}, None, None, None)')
             cw.new_line()
 
             cw.write('fields_metadata = (')
