@@ -333,8 +333,6 @@ class MessageCodeGenerator(CodeGenerator):
         self.code_writer.new_line(2)
         self.generate_imports()
         self.code_writer.new_line(2)
-        self.generate_metadata()
-        self.code_writer.new_line(2)
         self.generate_messages()
 
     def generate_imports(self):
@@ -351,34 +349,13 @@ class MessageCodeGenerator(CodeGenerator):
         cw.write('from FIT.base_types import FITEnum, String, Float32, Float64, Byte')
         cw.new_line()
         cw.write('import FIT.types')
-        cw.write('from FIT.model import Record, Message, MessageDefinition, FieldDefinition, RecordField')
+        cw.write('from FIT.model import Record, Message, MessageDefinition, FieldDefinition, RecordField, FieldMetadata, MessageMetadata')
         cw.write('from FIT.decoder import extract_value')
-
-    def generate_metadata(self):
-        cw = self.code_writer
-        cw.write('@dataclass(frozen=True)')
-        cw.write('class FieldMetadata:')
-        cw.indent()
-        cw.write('number: int')
-        cw.write('name: str')
-        cw.write('type: str')
-        cw.write('array: str')
-        cw.write('components: str')
-        cw.write('scale: int')
-        cw.write('offset: int')
-        cw.write('units: str')
-        cw.write('bits: int')
-        cw.write('accumulated: Union[str, int]')
-        cw.write('ref_field_name: str')
-        cw.write('ref_field_value: str')
-        cw.unindent()
         cw.new_line(2)
-        cw.write('@dataclass(frozen=True)')
-        cw.write('class MessageMetadata:')
+        cw.write('def ufs(unit: str) -> FIT.types.Unit:')
         cw.indent()
-        cw.write('fields_metadata: Tuple[FieldMetadata]')
+        cw.write('return FIT.types.Unit.from_string(unit)')
         cw.unindent()
-        cw.new_line(2)
 
     def generate_messages(self):
         cw = self.code_writer
@@ -395,21 +372,38 @@ class MessageCodeGenerator(CodeGenerator):
             for field in message.fields:
                 CodeGenerator.check_valid_name(field.name)
 
-                resolved_field = {
+                rf = {
                     'name': field.name,
                     'type': 'FIT.types.' + CodeGenerator.capitalize_type_name(BASE_TYPE_NAME_MAP.get(field.type, field.type)),
                     'comment': field.comment,
                     'is_scalar': not field.array,
-                    'number': field.number
+                    'number': field.number,
+                    'offset': field.offset,
+                    'units': field.units
                 }
 
+                if field.scale:
+                    rf['scale'] = field.scale
+                else:
+                    rf['scale'] = 1
+
+                if field.offset:
+                    rf['offset'] = field.offset
+                else:
+                    rf['offset'] = 0
+
+                if field.units:
+                    rf['units'] = field.units
+                else:
+                    rf['units'] = 'dimensionless'
+
                 if field.type == 'bool':
-                    resolved_field['type'] = 'bool'
+                    rf['type'] = 'bool'
 
-                if not resolved_field['is_scalar'] and not resolved_field['type'] == 'String':
-                    resolved_field['type'] = f'Tuple[{resolved_field["type"]}]'
+                if not rf['is_scalar'] and not rf['type'] == 'String':
+                    rf['type'] = f'Tuple[{rf["type"]}]'
 
-                resolved_fields.append(resolved_field)
+                resolved_fields.append(rf)
 
             duplicate_field_names = duplicates([v['name'] for v in resolved_fields])
             if duplicate_field_names:
@@ -419,12 +413,12 @@ class MessageCodeGenerator(CodeGenerator):
                 max_name_length = max([len(resolved_field['name']) for resolved_field in resolved_fields])
                 max_type_length = max([len(resolved_field['type']) for resolved_field in resolved_fields])
 
-                for resolved_field in resolved_fields:
-                    CodeGenerator.check_valid_name(resolved_field['name'])
+                for rf in resolved_fields:
+                    CodeGenerator.check_valid_name(rf['name'])
                     fmt = '{:<' + str(max_name_length) + '} : {:<' + str(max_type_length) + '}'
-                    cw.write_fragment(fmt.format(resolved_field['name'], resolved_field['type']))
-                    if resolved_field['comment']:
-                        cw.write(f'    # {resolved_field["comment"]}')
+                    cw.write_fragment(fmt.format(rf['name'], rf['type']))
+                    if rf['comment']:
+                        cw.write(f'    # {rf["comment"]}')
                     else:
                         cw.write('')
             else:
@@ -438,12 +432,26 @@ class MessageCodeGenerator(CodeGenerator):
             cw.write('@dataclass(frozen=True)')
             cw.write(f'class {message_name}Metadata(MessageMetadata):')
             cw.indent()
+
+            for rf in resolved_fields:
+                cw.write(f'{rf["name"]}: FieldMetadata')
+            cw.new_line()
+
             cw.write('def __init__(self):')
             cw.indent()
+
+            for rf in resolved_fields:
+                cw.write(f'self.{rf["name"]} = FieldMetadata(\'{rf["name"]}\', {rf["number"]}, {rf["type"]}, {rf["scale"]}, {rf["offset"]}, None)')
+            cw.new_line()
+
             cw.write('fields_metadata = (')
             cw.indent()
+            for rf in resolved_fields:
+                cw.write(f'self.{rf["name"]},')
             cw.unindent()
             cw.write(')')
+            cw.new_line()
+
             cw.write('super().__init__(fields_metadata)')
             cw.unindent()
             cw.unindent()
@@ -462,10 +470,10 @@ class MessageCodeGenerator(CodeGenerator):
             cw.write(f'mn = \'{message_name}\'')
             cw.new_line()
 
-            for resolved_field in resolved_fields:
-                if resolved_field['type'].startswith('Tuple['):
-                    resolved_field['type'] = 'None'  # TODO: handle arrays
-                cw.write(f'{resolved_field["name"]} = extract_value(mn, \'{resolved_field["name"]}\', {resolved_field["number"]}, field_map, fields, {resolved_field["type"]}, error_on_invalid_enum_value)')
+            for rf in resolved_fields:
+                if rf['type'].startswith('Tuple['):
+                    rf['type'] = 'None'  # TODO: handle arrays
+                cw.write(f'{rf["name"]} = extract_value(mn, \'{rf["name"]}\', {rf["number"]}, field_map, fields, {rf["type"]}, error_on_invalid_enum_value)')
             cw.write(f'return {message_name}({", ".join(["developer_fields", "undocumented_fields"] + [resolved_field["name"] for resolved_field in resolved_fields])})')
             cw.unindent()
             cw.unindent()

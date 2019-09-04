@@ -154,4 +154,31 @@ class UndocumentedMessage(Message):
         return UndocumentedMessage(developer_fields, undocumented_fields)
 
 
+@dataclass(frozen=True)
+class FieldMetadata:
+    number: int
+    name: str
+    type: str
+    #array: str
+    #components: str
+    scale: int
+    offset: int
+    units: str
+    #bits: int
+    #accumulated: Union[str, int]
+    #ref_field_name: str
+    #ref_field_value: str
+
+
+@dataclass(frozen=True)
+class MessageMetadata:
+    fields_metadata: Tuple[FieldMetadata]
+
+    @functools.lru_cache(1)
+    def field_numbers(self) -> Tuple[int]:
+        return tuple([field_metadata.number for field_metadata in self.fields_metadata])
+
+    @functools.lru_cache(1)
+    def field_names(self) -> Tuple[str]:
+        return tuple([field_metadata.name for field_metadata in self.fields_metadata])
 
