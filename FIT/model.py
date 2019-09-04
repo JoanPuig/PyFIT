@@ -156,7 +156,6 @@ class UndocumentedMessage(Message):
 
 @dataclass(frozen=True)
 class FieldMetadata:
-    number: int
     name: str
     type: str
     #array: str
@@ -166,8 +165,17 @@ class FieldMetadata:
     units: str
     #bits: int
     #accumulated: Union[str, int]
-    #ref_field_name: str
-    #ref_field_value: str
+
+
+@dataclass(frozen=True)
+class DynamicFieldMetadata(FieldMetadata):
+    ref_field_name: str
+    ref_field_value: str
+
+
+@dataclass(frozen=True)
+class NormalFieldMetadata(FieldMetadata):
+    number: int
 
 
 @dataclass(frozen=True)
@@ -176,7 +184,7 @@ class MessageMetadata:
 
     @functools.lru_cache(1)
     def field_numbers(self) -> Tuple[int]:
-        return tuple([field_metadata.number for field_metadata in self.fields_metadata])
+        return tuple([field_metadata.number for field_metadata in self.fields_metadata if isinstance(field_metadata, NormalFieldMetadata)])
 
     @functools.lru_cache(1)
     def field_names(self) -> Tuple[str]:

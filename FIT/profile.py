@@ -109,8 +109,9 @@ class FieldProfile:
     example: Union[str, int]
 
 
-# Type alias of the potential contents of the excel sheet
-DataTable = List[List[Union[None, int, str, float]]]
+# Type alias for the contents of the xl sheet
+DataRow = List[Union[None, int, str, float]]
+DataTable = List[DataRow]
 
 
 @dataclass(frozen=True)
@@ -119,7 +120,7 @@ class MessageProfile:
     Holds the information for a message in the profile
     """
     name: str
-    fields: Tuple[FieldProfile]
+    fields: Union[Tuple[()], Tuple[FieldProfile]]
 
 
 @dataclass(frozen=True)
@@ -132,7 +133,7 @@ class Profile:
     messages: Tuple[MessageProfile]
 
     @staticmethod
-    def extract_data(sheet: xlrd.sheet.Sheet) -> DataTable:
+    def _extract_data(sheet: xlrd.sheet.Sheet) -> DataTable:
         """
         Helper function that extracts cell values from an xlrd sheet into a plain array
         """
@@ -142,9 +143,9 @@ class Profile:
         return [[sheet.cell_value(row, col) for col in range(0, cols)] for row in range(0, rows)]
 
     @staticmethod
-    def split(table: DataTable) -> List[DataTable]:
+    def _split(table: DataTable) -> List[DataTable]:
         """
-        Splits the content of the profile in its different sections
+        Helper function to splits the content of a profile sheet in its different sections
         """
 
         # Remove empty lines
@@ -160,11 +161,18 @@ class Profile:
         return split_content
 
     @staticmethod
-    def parse_type(type_data: DataTable) -> TypeProfile:
+    def _parse_type(type_data: DataTable) -> TypeProfile:
+        """
+        This function will return a TypeProfile given a plain data table. The first row should contain the type name, base type and a comment
+        the following rows should contain the data for the type named values
+        """
         return TypeProfile(type_data[0][0], type_data[0][1], type_data[0][4], tuple([ValueProfile(*v[2:]) for v in type_data[1:]]))
 
     @staticmethod
-    def to_int(array: List, index: int):
+    def _to_int(array: DataRow, index: int):
+        """
+        Helper function that will cast a given index of a list into int unless the value is '' in which case it will replace it with None
+        """
         if array[index] != '':
             array[index] = int(array[index])
         else:
@@ -172,11 +180,15 @@ class Profile:
         return array
 
     @staticmethod
-    def parse_message(message_data: DataTable) -> MessageProfile:
-        return MessageProfile(message_data[0][0], tuple([FieldProfile(*Profile.to_int(f[1:], 0)) for f in message_data[1:]]))
+    def _parse_message(message_data: DataTable) -> MessageProfile:
+        """
+        This function will return a MessageProfile given a plain data table. The first row should contain the message name
+        the following rows should contain the data for the message fields
+        """
+        return MessageProfile(message_data[0][0], tuple([FieldProfile(*Profile._to_int(f[1:], 0)) for f in message_data[1:]]))
 
     @staticmethod
-    def sha256(file_name: str) -> str:
+    def _sha256(file_name: str) -> str:
         """
         Helper function to compute the SHA256 hash of a given file name
         """
@@ -201,7 +213,7 @@ class Profile:
         """
 
         # Compute the hash and check that it is a known version
-        file_hash = Profile.sha256(file_name)
+        file_hash = Profile._sha256(file_name)
         if file_hash not in SDK_ZIP_SHA256:
             raise SDKContentError(f'The SHA of the input file {file_name} does not match the known SHAs of any supported SDK versions. FYI, the latest supported version is: {ProfileVersion.current().name}')
 
@@ -242,17 +254,17 @@ class Profile:
 
         # Get the plain data content for the types
         types_sheet = book.sheet_by_name('Types')
-        types_table = Profile.extract_data(types_sheet)
+        types_table = Profile._extract_data(types_sheet)
 
         # Get the plain data content for the messages
         messages_sheet = book.sheet_by_name('Messages')
-        messages_table = Profile.extract_data(messages_sheet)
+        messages_table = Profile._extract_data(messages_sheet)
 
         # Hand over to the profile parser from plain data
-        return Profile.from_tables(types_table, messages_table, version, strict, add_pad_message_profile)
+        return Profile._from_tables(types_table, messages_table, version, strict, add_pad_message_profile)
 
     @staticmethod
-    def from_tables(types_table: DataTable, messages_table:  DataTable, version: ProfileVersion, strict: bool = False, add_pad_message_profile: bool = True) -> "Profile":
+    def _from_tables(types_table: DataTable, messages_table:  DataTable, version: ProfileVersion, strict: bool = False, add_pad_message_profile: bool = True) -> "Profile":
         """
         Low level function that given plain data corresponding to the profile information will create a porfile object
         There are certain inconsistencies in the file that by default are just reported as a warning use strict=True to turn them into errors
@@ -261,52 +273,66 @@ class Profile:
         To get more information on pad see: https://www.thisisant.com/forum/viewthread/7217/
         """
 
-        split_types = Profile.split(types_table[1:])
-        types = [Profile.parse_type(type_data) for type_data in split_types]
+        # Split the contents of the types ignoring the first row which are the headers
+        split_types = Profile._split(types_table[1:])
+        types = [Profile._parse_type(type_data) for type_data in split_types]
 
+        # Check for duplicate types
         duplicate_type_names = duplicates([type_def.name for type_def in types])
         if duplicate_type_names:
             raise ProfileContentError(f'Profile {version.name} has duplicate type names: {", ".join(duplicate_type_names)}')
 
-        split_messages = Profile.split(messages_table[1:])
-        messages = [Profile.parse_message(message_data) for message_data in split_messages]
+        # Split the contents of the messages ignoring the first row which are the headers
+        split_messages = Profile._split(messages_table[1:])
+        messages = [Profile._parse_message(message_data) for message_data in split_messages]
 
+        # Check for duplicate messages
         message_names = [message.name for message in messages]
         duplicate_message_types = duplicates(message_names)
         if duplicate_message_types:
             raise ProfileContentError(f'Profile {version.name} has duplicate message types: {", ".join(duplicate_message_types)}')
 
+        # We add a pad message if required
         if 'pad' not in message_names and add_pad_message_profile:
             message_names.append('pad')
             messages.append(MessageProfile('pad', ()))
 
+        # We perform some consistency checks
+        mesg_num_def = None
         for type_def in types:
-            if type_def.name == 'mesg_num':
-                missing_message_type = []
-
-                for value in type_def.values:
-                    if (value.name not in message_names) and (value.name not in ['mfg_range_min', 'mfg_range_max']):
-                        missing_message_type.append(f'{value.name} ({value.value})')
-
-                if missing_message_type:
-                    error_message = f'Profile {version.name} has an entry in mesg_num for [{", ".join(missing_message_type)}] but no corresponding message definition'
-                    if strict:
-                        raise ProfileContentError(error_message)
-                    else:
-                        warnings.warn(error_message, ProfileContentWarning)
-
-                missing_mesg_num_value = []
-                for message_name in message_names:
-                    if message_name not in [value.name for value in type_def.values]:
-                        missing_mesg_num_value.append(message_name)
-
-                if missing_mesg_num_value:
-                    error_message = f'Profile {version.name} has message definition for [{", ".join(missing_mesg_num_value)}] but no corresponding value in mesg_num'
-                    if strict:
-                        raise ProfileContentError(error_message)
-                    else:
-                        warnings.warn(error_message, ProfileContentWarning)
-
+            if type_def.name == 'mesg_num':  # We know that the mesg_num is an enum like type that contains all the known messages
+                mesg_num_def = type_def
                 break
+
+            if not mesg_num_def:
+                raise ProfileContentError('The profile does not contain a "mesg_num" type definition')
+
+            missing_message_type = []
+            for value in mesg_num_def.values:
+                if value.name not in message_names:  # If there is no message found
+                    if value.name not in ['mfg_range_min', 'mfg_range_max']:  # And the name is not one of the manufacturer specific range constants
+                        missing_message_type.append(f'{value.name} ({value.value})')  # We add it to the missing messages
+
+            # Issue the errors / warnings
+            if missing_message_type:
+                error_message = f'Profile {version.name} has an entry in mesg_num for [{", ".join(missing_message_type)}] but no corresponding message definition'
+                if strict:
+                    raise ProfileContentError(error_message)
+                else:
+                    warnings.warn(error_message, ProfileContentWarning)
+
+            # We check for messages that have been defined, but do not have a corresponding entry in mesg_num
+            missing_mesg_num_value = []
+            for message_name in message_names:
+                if message_name not in [value.name for value in mesg_num_def.values]:
+                    missing_mesg_num_value.append(message_name)
+
+            # Issue the errors / warnings
+            if missing_mesg_num_value:
+                error_message = f'Profile {version.name} has message definition for [{", ".join(missing_mesg_num_value)}] but no corresponding value in mesg_num'
+                if strict:
+                    raise ProfileContentError(error_message)
+                else:
+                    warnings.warn(error_message, ProfileContentWarning)
 
         return Profile(version, tuple(types), tuple(messages))
