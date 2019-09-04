@@ -1,8 +1,10 @@
 # Copyright 2019 Joan Puig
 # See LICENSE for details
+
+
 import functools
-from dataclasses import dataclass
 import numpy as np
+from dataclasses import dataclass
 
 
 BASE_TYPE_NAME_MAP = {

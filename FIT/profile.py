@@ -1,16 +1,14 @@
 # Copyright 2019 Joan Puig
 # See LICENSE for details
 
-
+import zipfile
+import hashlib
+import xlrd
 import warnings
+
 from dataclasses import dataclass
 from enum import Enum
 from typing import Union, Tuple, List
-
-import zipfile
-import hashlib
-
-import xlrd
 
 from FIT import duplicates
 
@@ -51,6 +49,12 @@ class ProfileVersion(Enum):
     """
     Version_21_10_00 = 211000
     Version_20_96_00 = 209600
+
+    def version_str(self) -> str:
+        """
+        Returns a string representation of the version that matches the commonly used format by Garmin
+        """
+        return self.name[8:].replace("_", ".")
 
     @staticmethod
     def current() -> "ProfileVersion":
