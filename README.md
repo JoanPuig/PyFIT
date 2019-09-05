@@ -60,7 +60,7 @@ Here are a few ideas depending on your level of comfort with the code base:
 
 
 ### Getting help ###
-* If you have any questions, please, feel free to reach out to: Joan Puig at <joan.puig@gmail.com>.
+If you have any questions, please, feel free to reach out to: Joan Puig at <joan.puig@gmail.com>.
 
 
 ### Copyright ###
