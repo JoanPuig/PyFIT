@@ -22,7 +22,7 @@ def main():
         TypeCodeGenerator.generate(profile, types_file)
         MessageCodeGenerator.generate(profile, messages_file)
     else:
-        # This will generate the code but only print it to the screen
+        # This will not generate the code but only print it to the screen
         print(TypeCodeGenerator.generate(profile))
         print(MessageCodeGenerator.generate(profile))
 
