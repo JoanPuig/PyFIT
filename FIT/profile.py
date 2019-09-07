@@ -221,7 +221,7 @@ class ProfileCorrector209600(ProfileCorrector):
 Given a profile version, you will be able to obtain the class of the default corrector for that version
 """
 DEFAULT_PROFILE_CORRECTOR = {
-    ProfileVersion.Version_21_10_00:  ProfileCorrector211000(),
+    ProfileVersion.Version_21_10_00: ProfileCorrector211000(),
     ProfileVersion.Version_20_96_00: ProfileCorrector209600(),
 }
 
@@ -366,6 +366,10 @@ class Profile:
 
     @staticmethod
     def _parse_tuple(val: str) -> Union[Tuple[()], Tuple[str]]:
+        """
+        This function given a string of coma separated values will return a tuple with each value
+        the values will be stripped. If the input is '', the result is an empty tuple
+        """
         if val == '':
             return ()
         else:
@@ -373,6 +377,11 @@ class Profile:
 
     @staticmethod
     def _parse_str_component_value(val: str, num_components: int) -> Union[Tuple[None], Tuple[str]]:
+        """
+        Given a string and the number of components, this function will return a tuple of length number of
+        components that will have the split comma separated string values, or the repeated value or if the
+        input was '' a repeated None
+        """
         if val == '':
             return (None,) * num_components
         else:
@@ -384,16 +393,30 @@ class Profile:
 
     @staticmethod
     def _parse_int_component_value(val: Union[str, int, float], num_components: int) -> Union[Tuple[None], Tuple[int]]:
+        """
+        Given a string and the number of components, this function will return a tuple of length number of
+        components that will have the split comma separated int values, or the repeated value or if the
+        input was '' a repeated None
+        """
         if isinstance(val, float) or isinstance(val, int):
             return (val,) * num_components
         else:
             if val == '':
                 return (None,) * num_components
             else:
-                return tuple([int(v) for v in Profile._parse_tuple(val)])
+                tmp = Profile._parse_tuple(val)
+                if len(tmp) == 1 and len(tmp) != num_components:
+                    return (int(tmp[0]),) * num_components
+                else:
+                    return tuple([int(v) for v in tmp])
 
     @staticmethod
     def _parse_bool_component_value(val: Union[str, int, float], num_components: int) -> Union[Tuple[None], Tuple[bool]]:
+        """
+        Given a string and the number of components, this function will return a tuple of length number of
+        components that will have the split comma separated bool values represented as 0 or 1, or the
+        repeated value or if the  input was '' a repeated None
+        """
         if isinstance(val, bool):
             return (val,) * num_components
         elif isinstance(val, int) or isinstance(val, float):
@@ -402,7 +425,11 @@ class Profile:
             if val == '':
                 return (None,) * num_components
             else:
-                return tuple([int(v) == 1 for v in Profile._parse_tuple(val)])
+                tmp = Profile._parse_tuple(val)
+                if len(tmp) == 1 and len(tmp) != num_components:
+                    return (int(tmp[0]) == 1,) * num_components
+                else:
+                    return tuple([int(v) == 1 for v in tmp])
 
     @staticmethod
     def _parse_message_field(row: DataRow, version: ProfileVersion, profile_corrector: ProfileCorrector, message_name: str) -> MessageFieldProfile:

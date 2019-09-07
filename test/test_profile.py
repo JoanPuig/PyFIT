@@ -4,7 +4,7 @@
 
 import pytest
 
-from FIT.profile import Profile, ProfileVersion, ProfileContentError, ProfileContentWarning, DEFAULT_PROFILE_CORRECTOR
+from FIT.profile import Profile, ProfileVersion, ProfileContentError, ProfileContentWarning, DEFAULT_PROFILE_CORRECTOR, ProfileCorrector
 from test.test_common import all_sdk_files
 
 
@@ -111,55 +111,82 @@ def test_to_int():
 
 
 def test_parse_tuple():
-    pass
+    assert Profile._parse_tuple('') == ()
+    assert Profile._parse_tuple('a') == ('a',)
+    assert Profile._parse_tuple('ab') == ('ab',)
+    assert Profile._parse_tuple('a,b') == ('a', 'b')
+    assert Profile._parse_tuple('abc,def,ghi') == ('abc', 'def', 'ghi')
 
 
-def _parse_str_component_value():
-    pass
+def test_parse_str_component_value():
+    assert Profile._parse_str_component_value('', 1) == (None,)
+    assert Profile._parse_str_component_value('', 2) == (None, None)
+    assert Profile._parse_str_component_value('a', 1) == ('a',)
+    assert Profile._parse_str_component_value('a,b,c', 3) == ('a', 'b', 'c')
+    assert Profile._parse_str_component_value('a', 3) == ('a', 'a', 'a')
 
 
-def _parse_int_component_value():
-    pass
+def test_parse_int_component_value():
+    assert Profile._parse_int_component_value('', 1) == (None,)
+    assert Profile._parse_int_component_value('', 2) == (None, None)
+    assert Profile._parse_int_component_value(1, 1) == (1,)
+    assert Profile._parse_int_component_value('1,2,3', 3) == (1, 2, 3)
+    assert Profile._parse_int_component_value('1', 3) == (1, 1, 1)
+    assert Profile._parse_int_component_value(1, 3) == (1, 1, 1)
 
 
-def _parse_bool_component_value():
-    pass
+def test_parse_bool_component_value():
+    assert Profile._parse_bool_component_value('', 1) == (None,)
+    assert Profile._parse_bool_component_value('', 2) == (None, None)
+    assert Profile._parse_bool_component_value(True, 1) == (True,)
+    assert Profile._parse_bool_component_value('1,0,1', 3) == (True, False, True)
+    assert Profile._parse_bool_component_value('1', 3) == (True, True, True)
+    assert Profile._parse_bool_component_value(True, 3) == (True, True, True)
 
 
 def test_if_empty_string():
-    pass
+    assert Profile._if_empty_string('', 'REP') == 'REP'
+    assert Profile._if_empty_string('xyz', 'REP') == 'xyz'
 
 
 def test_parse_message_field():
-    pass
+    # TODO test
+    assert False
 
 
 def test_parse_message():
-    pass
+    # TODO test
+    assert False
 
 
 def test_extract_data():
-    pass
+    # TODO test
+    assert False
 
 
 def test_parse_messages():
-    pass
+    # TODO test
+    assert False
 
 
 def test_split():
-    pass
+    # TODO test
+    assert False
 
 
 def test_from_tables():
-    pass
+    # TODO test
+    assert False
 
 
 def test_from_xlsx():
-    pass
+    # TODO test
+    assert False
 
 
 def test_sha256():
-    pass
+    # TODO test
+    assert False
 
 
 @pytest.mark.parametrize('file', all_sdk_files())
@@ -168,9 +195,10 @@ def test_from_sdk_zip(file: str):
 
 
 def test_profile_corrector():
-    pass
+    # TODO test
+    assert False
 
 
-def test_profile_version_str():
-    assert ProfileVersion.Version_21_10_00.version_str() == '21.10.00'
-    assert ProfileVersion.Version_20_96_00.version_str() == '20.96.00'
+@pytest.mark.parametrize('profile_corrector', DEFAULT_PROFILE_CORRECTOR.keys())
+def test_profile_version_str(profile_corrector: ProfileCorrector):
+    assert False
