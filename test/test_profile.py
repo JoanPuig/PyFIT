@@ -189,6 +189,11 @@ def test_sha256():
     assert False
 
 
+def test_units():
+    # TODO test
+    assert False
+
+
 @pytest.mark.parametrize('file', all_sdk_files())
 def test_from_sdk_zip(file: str):
     profile = Profile.from_sdk_zip(file)

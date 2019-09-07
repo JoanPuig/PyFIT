@@ -1,6 +1,6 @@
 # Copyright 2019 Joan Puig
 # See LICENSE for details
-
+import functools
 import zipfile
 import hashlib
 import xlrd
@@ -10,7 +10,6 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Union, Tuple, List, Set, Iterable, Optional
 from FIT.base_types import BASE_TYPE_NAME_MAP
-
 
 """
 This file provides all the classes and functions related to the loading and parsing of the profile data
@@ -157,12 +156,41 @@ class MessageProfile:
 class ProfileCorrector:
     """
     The "raw" profile sometimes contains inconsistencies, missing values, extra values, etc
-    The profile corrector will be used to correct them. Also, it is version dependent
+    The profile corrector will be used to correct them.
     """
+
+    INVALID_VALUE_NAME_IDENTIFIERS = {
+        'none': 'Null',
+        '4iiiis': 'Innovations4iiiis',
+        '1partcarbon': 'OnePartCarbon',
+        '3_way_calf_raise': 'ThreeWayCalfRaise',
+        '3_way_weighted_calf_raise': 'ThreeWayWeightedCalfRaise',
+        '3_way_single_leg_calf_raise': 'ThreeWaySingleLegCalfRaise',
+        '3_way_weighted_single_leg_calf_raise': 'ThreeWayWeightedSingleLegCalfRaise',
+        '45_degree_cable_external_rotation': 'FortyFiveDegreeCableExternalRotation',
+        '45_degree_plank': 'FortyFiveDegreePlank',
+        '90_degree_static_hold': 'NinetyDegreeStaticHold',
+        '30_degree_lat_pulldown': 'ThirtyDegreeLatPulldown',
+        '90_degree_cable_external_rotation': 'NinetyDegreeCableExternalRotation',
+    }
+
+    UNIT_SYNONYMS = {
+        '2 * cycles (steps)': 'two_cycles_steps',
+        '100 * m': 'length_100_m',
+        'min': 'minutes',
+        'deg/s': 'degrees/s',
+        'C': 'degrees_celsius',
+        'if': 'intensity_factor',
+        'tss': 'training_stress_score',
+        'mmHg': 'mm_Hg',
+        '': 'dimensionless',
+    }
 
     @staticmethod
     def correct_named_value(named_value_profile: NamedValueProfile) -> NamedValueProfile:
-        return named_value_profile
+        old_name = named_value_profile.name
+        new_name = ProfileCorrector.INVALID_VALUE_NAME_IDENTIFIERS.get(old_name, old_name)
+        return NamedValueProfile(new_name, named_value_profile.value, named_value_profile.comment)
 
     @staticmethod
     def correct_named_values(named_value_profiles: Union[Tuple[()], Tuple[NamedValueProfile]]) -> Union[Tuple[()], Tuple[NamedValueProfile]]:
@@ -181,11 +209,28 @@ class ProfileCorrector:
         return type_profiles
 
     @staticmethod
-    def correct_field(field_profile: MessageFieldProfile) -> MessageFieldProfile:
-        return field_profile
+    def correct_message_field(fp: MessageFieldProfile) -> MessageFieldProfile:
+        # The profile file provided in the SDK has inconsistent names for units, the following code cleans them up
+
+        # Replace some illegal characters in the unit names
+        def clean_unit(u: Optional[str]) -> Optional[str]:
+            if u is None:
+                return None
+            else:
+                return ProfileCorrector.UNIT_SYNONYMS.get(u, u).replace(' ', '_').replace('^', '').replace('/', '_per_').replace('%', 'percent')
+
+        if isinstance(fp, MessageComponentFieldProfile):
+            new_components = []
+            for c in fp.components:
+                new_components.append(ComponentProfile(c.destination_field, c.scale, c.offset, clean_unit(c.units), c.bits, c.accumulated))
+            return MessageComponentFieldProfile(fp.number, fp.name, fp.type, fp.array, fp.comment, fp.product, fp.example, fp.dynamic_field_matchers, tuple(new_components))
+        elif isinstance(fp, MessageScalarFieldProfile):
+            return MessageScalarFieldProfile(fp.number, fp.name, fp.type, fp.array, fp.comment, fp.product, fp.example, fp.dynamic_field_matchers, fp.scale, fp.offset, clean_unit(fp.units), fp.accumulated)
+        else:
+            raise ProfileContentError(f'Unexpected MessageFieldProfile implementation {type(fp)}')
 
     @staticmethod
-    def correct_fields(field_profiles: Union[Tuple[()], Tuple[MessageFieldProfile]]) -> Union[Tuple[()], Tuple[MessageFieldProfile]]:
+    def correct_message_fields(field_profiles: Union[Tuple[()], Tuple[MessageFieldProfile]]) -> Union[Tuple[()], Tuple[MessageFieldProfile]]:
         return field_profiles
 
     @staticmethod
@@ -234,6 +279,27 @@ class Profile:
     version: ProfileVersion
     types: Tuple[TypeProfile]
     messages: Tuple[MessageProfile]
+
+    @functools.lru_cache(1)
+    def units(self) -> Tuple[str]:
+        """
+        Extracts the list of all the units
+        """
+
+        units = set()
+        for message in self.messages:
+            if isinstance(message, MessageScalarFieldProfile):
+                if message.units:
+                    units.add(message.units)
+            elif isinstance(message, MessageComponentFieldProfile):
+                for component in message.components:
+                    if component.units:
+                        units.add(component.units)
+
+        units = list(units)
+        units.sort(key=str.lower)
+
+        return tuple(units)
 
     @staticmethod
     def duplicates(elements: Iterable) -> Set:
@@ -478,7 +544,7 @@ class Profile:
             if field_profile.number is not None:
                 ProfileContentError(f'Profile {version.version_str()} message "{message_name}" field "{field_profile.name}" has both a field number and a ref_field_name value')
 
-        return profile_corrector.correct_field(field_profile)
+        return profile_corrector.correct_message_field(field_profile)
 
     @staticmethod
     def _parse_message(message_data: DataTable, version: ProfileVersion, profile_corrector: ProfileCorrector) -> MessageProfile:
@@ -494,7 +560,7 @@ class Profile:
 
         # Parse and correct the message fields
         fields = tuple([Profile._parse_message_field(row, version, profile_corrector, message_name) for row in message_data[1:]])
-        fields = profile_corrector.correct_fields(fields)
+        fields = profile_corrector.correct_message_fields(fields)
 
         # Construct and correct the message
         message = MessageProfile(message_name, tuple(fields))
