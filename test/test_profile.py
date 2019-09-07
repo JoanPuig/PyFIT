@@ -110,6 +110,22 @@ def test_to_int():
     assert Profile._to_int(['a', 1.0, 'b'], 0) == ['a', 1.0, 'b']
 
 
+def test_parse_tuple():
+    pass
+
+
+def test_if_empty_string():
+    pass
+
+
+def test_parse_message_field():
+    pass
+
+
+def test_parse_message():
+    pass
+
+
 def test_extract_data():
     pass
 
@@ -130,7 +146,19 @@ def test_from_xlsx():
     pass
 
 
+def test_sha256():
+    pass
+
+
 @pytest.mark.parametrize('file', all_sdk_files())
 def test_from_sdk_zip(file: str):
     profile = Profile.from_sdk_zip(file)
 
+
+def test_profile_corrector():
+    pass
+
+
+def test_profile_version_str():
+    assert ProfileVersion.Version_21_10_00.version_str() == '21.10.00'
+    assert ProfileVersion.Version_20_96_00.version_str() == '20.96.00'

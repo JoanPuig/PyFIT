@@ -89,9 +89,24 @@ class TypeProfile:
     comment: str
     values: Tuple[NamedValueProfile]
 
+@dataclass(frozen=True)
+class ComponentProfile:
+    destination_field: str
+    scale: int
+    offset: int
+    units: str
+    bits: int
+    accumulated: bool
+
 
 @dataclass(frozen=True)
-class FieldProfile:
+class DynamicFieldMatcher:
+    ref_field_name: str
+    ref_field_value: str
+
+
+@dataclass(frozen=True)
+class MessageFieldProfile:
     """
     Holds the information for a field contained within a message in the profile
     """
@@ -99,17 +114,29 @@ class FieldProfile:
     name: str
     type: str
     array: str
-    components: str
-    scale: int
-    offset: int
-    units: str
-    bits: int
-    accumulated: Union[str, int]
-    ref_field_name: str
-    ref_field_value: str
     comment: str
     product: str
     example: Union[str, int]
+    dynamic_field_matchers: Tuple[DynamicFieldMatcher]
+
+
+@dataclass(frozen=True)
+class MessageScalarFieldProfile(MessageFieldProfile):
+    """
+    Holds the information for a scalar field contained within a message in the profile
+    """
+    scale: int
+    offset: int
+    units: str
+    accumulated: bool
+
+
+@dataclass(frozen=True)
+class MessageComponentFieldProfile(MessageFieldProfile):
+    """
+    Holds the information for a component field contained within a message in the profile
+    """
+    components: Tuple[ComponentProfile]
 
 
 # Type alias for the contents of the xl sheet
@@ -123,7 +150,7 @@ class MessageProfile:
     Holds the information for a message in the profile
     """
     name: str
-    fields: Union[Tuple[()], Tuple[FieldProfile]]
+    fields: Union[Tuple[()], Tuple[MessageFieldProfile]]
 
 
 class ProfileCorrector:
@@ -153,11 +180,11 @@ class ProfileCorrector:
         return type_profiles
 
     @staticmethod
-    def correct_field(field_profile: FieldProfile) -> FieldProfile:
+    def correct_field(field_profile: MessageFieldProfile) -> MessageFieldProfile:
         return field_profile
 
     @staticmethod
-    def correct_fields(field_profiles: Union[Tuple[()], Tuple[FieldProfile]]) -> Union[Tuple[()], Tuple[FieldProfile]]:
+    def correct_fields(field_profiles: Union[Tuple[()], Tuple[MessageFieldProfile]]) -> Union[Tuple[()], Tuple[MessageFieldProfile]]:
         return field_profiles
 
     @staticmethod
@@ -226,6 +253,29 @@ class Profile:
             warnings.warn(message, ProfileContentWarning)
 
     @staticmethod
+    def _parse_named_value(row: DataRow, version: ProfileVersion, profile_corrector: ProfileCorrector, type_name: str):
+        """
+        This low level internal function will parse a named value profile given a data row
+        """
+
+        # Replace floating point constant into ints as xlrd will load ints as floats
+        Profile._to_int(row, 3)
+
+        # Create and correct the named value profile
+        value = NamedValueProfile(*row[2:])
+        value = profile_corrector.correct_named_value(value)
+
+        # Check no empty value name
+        if not value.name:
+            raise ProfileContentError(f'Profile {version.version_str()} in type "{type_name}" has empty value name')
+
+        # Check no empty values
+        if value.value is None or value.value == '':
+            raise ProfileContentError(f'Profile {version.version_str()} in type "{type_name}" has empty value for name "{value.name}"')
+
+        return value
+
+    @staticmethod
     def _parse_type(type_data: DataTable, version: ProfileVersion, profile_corrector: ProfileCorrector, strict: bool) -> TypeProfile:
         """
         This low level function will return a TypeProfile given a plain data table. The first row should contain the type name,
@@ -241,43 +291,32 @@ class Profile:
             if len(row) != 5:
                 raise ProfileContentError(f'Profile {version.version_str()} expecting row length of 5, got {len(row)}')
 
-        # Replace floating point constant into ints as xlrd will load ints as floats
-        for row in type_data:
-            Profile._to_int(row, 3)
-
-        named_values = [NamedValueProfile(*v[2:]) for v in type_data[1:]]
-        names_values = tuple([profile_corrector.correct_named_value(named_value) for named_value in named_values])
-        named_values = profile_corrector.correct_named_values(names_values)
-        type_profile = TypeProfile(type_data[0][0], type_data[0][1], type_data[0][4], named_values)
-        type_profile = profile_corrector.correct_type(type_profile)
-
         # Check that the type name is not empty
-        if not type_profile.name:
+        type_name = type_data[0][0]
+        if not isinstance(type_name, str) or type_name == '':
             raise ProfileContentError(f'Profile {version.version_str()} has empty type name')
+
+        # Parse and correct the named values
+        named_values = tuple([Profile._parse_named_value(row, version, profile_corrector, type_name) for row in type_data[1:]])
+        named_values = profile_corrector.correct_named_values(named_values)
+
+        # Create and correct the type profile
+        type_profile = TypeProfile(type_name, type_data[0][1], type_data[0][4], named_values)
+        type_profile = profile_corrector.correct_type(type_profile)
 
         # Check that the base type is known
         if type_profile.base_type not in BASE_TYPE_NAME_MAP.keys():
-            raise ProfileContentError(f'Profile {version.version_str()} type {type_profile} has unknown base type: {type_profile.base_type}')
-
-        # Check no empty value names
-        for value in type_profile.values:
-            if not value.name:
-                raise ProfileContentError(f'Profile {version.version_str()} in type {type_profile.name} has empty value name')
-
-        # Check no empty values
-        for value in type_profile.values:
-            if value.value is None or value.value == '':
-                raise ProfileContentError(f'Profile {version.version_str()} in type {type_profile.name} has empty value for name {value.name}')
+            raise ProfileContentError(f'Profile {version.version_str()} type "{type_profile}" has unknown base type: "{type_profile.base_type}"')
 
         # Check no duplicate value names
         duplicates = Profile.duplicates([value.name for value in type_profile.values])
         if duplicates:
-            Profile._non_fatal_error(f'Profile {version.version_str()} in type {type_profile.name} has duplicate values names: {", ".join(duplicates)}', strict)
+            Profile._non_fatal_error(f'Profile {version.version_str()} type "{type_profile.name}" has duplicate values names: {duplicates}', strict)
 
         # Check no duplicate values
         duplicates = Profile.duplicates([value.value for value in type_profile.values])
         if duplicates:
-            Profile._non_fatal_error(f'Profile {version.version_str()} in type {type_profile.name} has duplicate values: {", ".join([str(duplicate) for duplicate in duplicates])}', strict)
+            Profile._non_fatal_error(f'Profile {version.version_str()} in type "{type_profile.name}" has duplicate values: {[str(duplicate) for duplicate in duplicates]}', strict)
 
         return type_profile
 
@@ -292,13 +331,15 @@ class Profile:
 
         # Split the contents of the types ignoring the first row which are the headers
         split_types = Profile._split(types_table[1:])
+
+        # parse and correct the types
         types = tuple([Profile._parse_type(type_data, version, profile_corrector, strict) for type_data in split_types])
         types = profile_corrector.correct_types(types)
 
         # Check for duplicate types
         duplicate_type_names = Profile.duplicates(type_def.name for type_def in types)
         if duplicate_type_names:
-            raise ProfileContentError(f'Profile {version.version_str()} has duplicate type names: {", ".join(duplicate_type_names)}')
+            raise ProfileContentError(f'Profile {version.version_str()} has duplicate type names: {duplicate_type_names}')
 
         return types
 
@@ -313,18 +354,89 @@ class Profile:
         return row
 
     @staticmethod
-    def _parse_message(message_data: DataTable, profile_corrector: ProfileCorrector) -> MessageProfile:
+    def _if_empty_string(val: str, replacement):
+        """
+        Helper function that returns a replacement value if the value is an empty string
+        """
+        if val == '':
+            return replacement
+        else:
+            return val
+
+    @staticmethod
+    def _parse_tuple(val: str) -> Tuple:
+        return val
+
+    @staticmethod
+    def _parse_message_field(row: DataRow, version: ProfileVersion, profile_corrector: ProfileCorrector, message_name: str) -> MessageFieldProfile:
+        if row[1] != '':
+            number = int(row[1])
+        else:
+            number = None
+        name = row[2]
+        field_type = row[3]
+        array = Profile._if_empty_string(row[4], None)
+
+        ref_field_name = Profile._parse_tuple(row[11])
+        ref_field_value = Profile._parse_tuple(row[12])
+        matchers = None
+
+        comment = row[13]
+        product = row[14]
+        example = row[15]
+
+        components = Profile._if_empty_string(row[5], None)
+        if components is None:
+            scale = Profile._if_empty_string(row[6], None)
+            offset = Profile._if_empty_string(row[7], None)
+            units = Profile._if_empty_string(row[8], None)
+            bits = Profile._if_empty_string(row[9], None)
+            accumulated = Profile._if_empty_string(row[10], False)
+            field_profile = None  # TODO components
+        else:
+            scale = Profile._if_empty_string(row[6], None)
+            offset = Profile._if_empty_string(row[7], None)
+            units = Profile._if_empty_string(row[8], None)
+            bits = Profile._if_empty_string(row[9], None)
+            accumulated = Profile._if_empty_string(row[10], False)
+
+            field_profile = MessageScalarFieldProfile(number, name, field_type, array, comment, product, example, matchers, scale, offset, units, accumulated)
+
+        return profile_corrector.correct_field(field_profile)
+
+    @staticmethod
+    def _parse_message(message_data: DataTable, version: ProfileVersion, profile_corrector: ProfileCorrector) -> MessageProfile:
         """
         This low level function will return a MessageProfile given a plain data table. The first row should contain the message name
         the following rows should contain the data for the message fields
         """
-        fields = [FieldProfile(*Profile._to_int(f[1:], 0)) for f in message_data[1:]]
-        fields = [profile_corrector.correct_field(field) for field in fields]
-        fields = profile_corrector.correct_fields(tuple(fields))
-        message = MessageProfile(message_data[0][0], tuple(fields))
+
+        # Check non empty message name
+        message_name = message_data[0][0]
+        if not isinstance(message_name, str) or message_name == '':
+            raise ProfileContentError(f'Profile {version.version_str()} has empty type message name')
+
+        # Parse and correct the message fields
+        fields = tuple([Profile._parse_message_field(row, version, profile_corrector, message_name) for row in message_data[1:]])
+        fields = profile_corrector.correct_fields(fields)
+
+        # Construct and correct the message
+        message = MessageProfile(message_name, tuple(fields))
         message = profile_corrector.correct_message(message)
 
-        # TODO check ref names and components exist
+        for i in range(0, len(message.fields)):
+            field = message.fields[i]
+            # Check that the reference fields of the dynamic fields exist prior to this field definition
+            for marcher in field.dynamic_field_matchers:
+                if marcher.ref_field_name not in [inner_field.name for inner_field in message.fields[:i]]:
+                    raise ProfileContentError(f'Profile {version.version_str()} message "{message.name}" dynamic field "{field.name}" has unknown ref_field_name "{marcher.ref_field_name}"')
+
+            # In case it is a component field, we check that the destination field exists after this field
+            if isinstance(field, MessageComponentFieldProfile):
+                posterior_fields = [inner_field.name for inner_field in message.fields[i+1:]]
+                for component in field.components:
+                    if component.destination_field not in posterior_fields:
+                        raise ProfileContentError(f'Profile {version.version_str()} message "{message.name}" component field "{field.name}" has unknown destination field "{component.destination_field}"')
 
         return message
 
@@ -346,7 +458,7 @@ class Profile:
 
         # Split the contents of the messages ignoring the first row which are the headers
         split_messages = Profile._split(messages_table[1:])
-        messages = [Profile._parse_message(message_data, profile_corrector) for message_data in split_messages]
+        messages = [Profile._parse_message(message_data, version, profile_corrector) for message_data in split_messages]
         messages = tuple([profile_corrector.correct_message(message) for message in messages])
         messages = profile_corrector.correct_messages(messages)
 
@@ -354,7 +466,7 @@ class Profile:
         message_names = [message.name for message in messages]
         duplicate_message_types = Profile.duplicates(message_names)
         if duplicate_message_types:
-            raise ProfileContentError(f'Profile {version.version_str()} has duplicate message types: {", ".join(duplicate_message_types)}')
+            raise ProfileContentError(f'Profile {version.version_str()} has duplicate message types: {duplicate_message_types}')
 
         return messages
 
@@ -407,7 +519,7 @@ class Profile:
 
         # Issue the errors / warnings
         if missing_message_type:
-            error_message = f'Profile {version.version_str()} has an entry in mesg_num for [{", ".join(missing_message_type)}] but no corresponding message definition'
+            error_message = f'Profile {version.version_str()} has an entry in mesg_num for {missing_message_type} but no corresponding message definition'
             Profile._non_fatal_error(error_message, strict)
 
         # We check for messages that have been defined, but do not have a corresponding entry in mesg_num
@@ -418,7 +530,7 @@ class Profile:
 
         # Issue the errors / warnings
         if missing_mesg_num_value:
-            error_message = f'Profile {version.version_str()} has message definition for [{", ".join(missing_mesg_num_value)}] but no corresponding value in mesg_num'
+            error_message = f'Profile {version.version_str()} has message definition for {missing_mesg_num_value} but no corresponding value in mesg_num'
             Profile._non_fatal_error(error_message, strict)
 
         return profile_corrector.correct_profile(Profile(version, types, messages))
