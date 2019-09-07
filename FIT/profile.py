@@ -8,7 +8,7 @@ import warnings
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Union, Tuple, List, Set, Iterable
+from typing import Union, Tuple, List, Set, Iterable, Optional
 from FIT.base_types import BASE_TYPE_NAME_MAP
 
 
@@ -92,12 +92,12 @@ class TypeProfile:
 
 @dataclass(frozen=True)
 class ComponentProfile:
-    destination_field: str
-    scale: int
-    offset: int
-    units: str
-    bits: int
-    accumulated: bool
+    destination_field: Optional[str]
+    scale: Optional[int]
+    offset: Optional[int]
+    units: Optional[str]
+    bits: Optional[int]
+    accumulated: Optional[bool]
 
 
 @dataclass(frozen=True)
@@ -114,7 +114,7 @@ class MessageFieldProfile:
     number: int
     name: str
     type: str
-    array: str
+    array: Optional[str]
     comment: str
     product: str
     example: Union[str, int]
@@ -126,10 +126,10 @@ class MessageScalarFieldProfile(MessageFieldProfile):
     """
     Holds the information for a scalar field contained within a message in the profile
     """
-    scale: int
-    offset: int
-    units: str
-    accumulated: bool
+    scale: Optional[int]
+    offset: Optional[int]
+    units: Optional[str]
+    accumulated: Optional[bool]
 
 
 @dataclass(frozen=True)
@@ -417,7 +417,7 @@ class Profile:
         if row[11] != '' or row[12] != '':
             ref_field_names = Profile._parse_tuple(row[11])
             ref_field_values = Profile._parse_tuple(row[12])
-            matchers = tuple([DynamicFieldMatcher(ref_field_name, ref_field_value) for (ref_field_name, ref_field_value) in zip(ref_field_names, ref_field_values)])
+            matchers = tuple([DynamicFieldMatcher(rfn, rfv) for rfn, rfv in zip(ref_field_names, ref_field_values)])
         else:
             matchers = ()
 
@@ -438,7 +438,7 @@ class Profile:
             for i in range(0, len(components)):
                 component_profiles.append(ComponentProfile(components[i], scale[i], offset[i], units[i], bits[i], accumulated[i]))
 
-            field_profile = MessageComponentFieldProfile(number, name, field_type, array, comment, product, example, matchers, tuple(component_profiles))  # TODO components
+            field_profile = MessageComponentFieldProfile(number, name, field_type, array, comment, product, example, matchers, tuple(component_profiles))
         else:
             scale = Profile._if_empty_string(row[6], None)
             offset = Profile._if_empty_string(row[7], None)
