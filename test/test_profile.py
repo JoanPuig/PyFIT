@@ -4,7 +4,7 @@
 
 import pytest
 
-from FIT.profile import Profile, ProfileVersion, ProfileContentError, ProfileContentWarning
+from FIT.profile import Profile, ProfileVersion, ProfileContentError, ProfileContentWarning, DEFAULT_PROFILE_CORRECTOR
 
 
 def test_duplicates():
@@ -24,21 +24,22 @@ def test_non_fatal_error():
 
 def test_parse_type():
     pv = ProfileVersion.current()
+    pc = DEFAULT_PROFILE_CORRECTOR[pv]
 
     with pytest.raises(ProfileContentError):
-        te = Profile._parse_type([], pv, True)
+        te = Profile._parse_type([], pv, pc, True)
 
     with pytest.raises(ProfileContentError):
-        te = Profile._parse_type([['', '', '', 0.0, 'EMPTY VALUE NAME', 'MORE']], pv, True)
+        te = Profile._parse_type([['', '', '', 0.0, 'EMPTY VALUE NAME', 'MORE']], pv, pc, True)
 
     with pytest.raises(ProfileContentError):
-        te = Profile._parse_type([['', '', '', 0.0]], pv, True)
+        te = Profile._parse_type([['', '', '', 0.0]], pv, pc, True)
 
     with pytest.raises(ProfileContentError):
-        te = Profile._parse_type([['', '', '', '', '']], pv, True)
+        te = Profile._parse_type([['', '', '', '', '']], pv, pc, True)
 
     with pytest.raises(ProfileContentError):
-        te = Profile._parse_type([['NAME', 'UNKNOWN_BASE_TYPE', '', '', '']], pv, True)
+        te = Profile._parse_type([['NAME', 'UNKNOWN_BASE_TYPE', '', '', '']], pv, pc, True)
 
     tt = [
         ['NAME', 'enum', '', '', ''],
@@ -46,12 +47,12 @@ def test_parse_type():
         ['', '', 'VALUE_2', 2, 'COMMENT 2']
     ]
 
-    t1 = Profile._parse_type([tt[0]], pv, True)
+    t1 = Profile._parse_type([tt[0]], pv, pc, True)
     assert t1.name == 'NAME'
     assert t1.base_type == 'enum'
     assert len(t1.values) == 0
 
-    t2 = Profile._parse_type(tt, pv, True)
+    t2 = Profile._parse_type(tt, pv, pc, True)
     assert t2.name == 'NAME'
     assert t2.base_type == 'enum'
     assert len(t2.values) == 2
@@ -63,20 +64,21 @@ def test_parse_type():
     assert t2.values[1].comment == 'COMMENT 2'
 
     with pytest.raises(ProfileContentError):
-        te = Profile._parse_type(tt + [['', '', '', 0, 'EMPTY VALUE NAME']], pv, True)
+        te = Profile._parse_type(tt + [['', '', '', 0, 'EMPTY VALUE NAME']], pv, pc, True)
 
     with pytest.raises(ProfileContentError):
-        te = Profile._parse_type(tt + [['', '', 'VALUE_X', '', 'EMPTY VALUE']], pv, True)
+        te = Profile._parse_type(tt + [['', '', 'VALUE_X', '', 'EMPTY VALUE']], pv, pc, True)
 
     with pytest.raises(ProfileContentError):
-        te = Profile._parse_type(tt + [['', '', 'VALUE_1', 3, 'DUPLICATE VALUE NAME']], pv, True)
+        te = Profile._parse_type(tt + [['', '', 'VALUE_1', 3, 'DUPLICATE VALUE NAME']], pv, pc, True)
 
     with pytest.raises(ProfileContentError):
-        te = Profile._parse_type(tt + [['', '', 'VALUE_X', 1, 'DUPLICATE VALUE']], pv, True)
+        te = Profile._parse_type(tt + [['', '', 'VALUE_X', 1, 'DUPLICATE VALUE']], pv, pc, True)
 
 
 def test_parse_types():
     pv = ProfileVersion.current()
+    pc = DEFAULT_PROFILE_CORRECTOR[pv]
 
     tt = [
         ['HEADER', '', '', '', ''],
@@ -89,11 +91,11 @@ def test_parse_types():
     ]
 
     with pytest.raises(ProfileContentError):
-        Profile._parse_types([], pv, True)
+        Profile._parse_types([], pv, pc, True)
 
-    assert len(Profile._parse_types([tt[0]], pv, True)) == 0
-    assert len(Profile._parse_types(tt[:4], pv, True)) == 1
-    assert len(Profile._parse_types(tt, pv, True)) == 2
+    assert len(Profile._parse_types([tt[0]], pv, pc, True)) == 0
+    assert len(Profile._parse_types(tt[:4], pv, pc, True)) == 1
+    assert len(Profile._parse_types(tt, pv, pc, True)) == 2
 
     with pytest.raises(ProfileContentError):
-        te = Profile._parse_type(tt + [['NAME_1', 'enum', '', '', '']], pv, True)
+        te = Profile._parse_type(tt + [['NAME_1', 'enum', '', '', '']], pv, pc, True)

@@ -70,7 +70,7 @@ SDK_ZIP_SHA256 = {
 
 
 @dataclass(frozen=True)
-class ValueProfile:
+class NamedValueProfile:
     """
     Holds the information for a named value in the profile
     """
@@ -87,7 +87,7 @@ class TypeProfile:
     name: str
     base_type: str
     comment: str
-    values: Tuple[ValueProfile]
+    values: Tuple[NamedValueProfile]
 
 
 @dataclass(frozen=True)
@@ -126,6 +126,78 @@ class MessageProfile:
     fields: Union[Tuple[()], Tuple[FieldProfile]]
 
 
+class ProfileCorrector:
+    """
+    The "raw" profile sometimes contains inconsistencies, missing values, extra values, etc
+    The profile corrector will be used to correct them. Also, it is version dependent
+    """
+
+    @staticmethod
+    def correct_named_value(named_value_profile: NamedValueProfile) -> NamedValueProfile:
+        return named_value_profile
+
+    @staticmethod
+    def correct_named_values(named_value_profiles: Union[Tuple[()], Tuple[NamedValueProfile]]) -> Union[Tuple[()], Tuple[NamedValueProfile]]:
+        return named_value_profiles
+
+    @staticmethod
+    def correct_type(type_profile: TypeProfile) -> TypeProfile:
+        if type_profile.name == 'weather_report':
+            # According to the comment: forecast is deprecated use hourly_forecast instead
+            named_values = tuple([named_value for named_value in type_profile.values if named_value.name != 'forecast'])
+            return TypeProfile(type_profile.name, type_profile.base_type, type_profile.comment, named_values)
+        return type_profile
+
+    @staticmethod
+    def correct_types(type_profiles: Union[Tuple[()], Tuple[TypeProfile]]) -> Union[Tuple[()], Tuple[TypeProfile]]:
+        return type_profiles
+
+    @staticmethod
+    def correct_field(field_profile: FieldProfile) -> FieldProfile:
+        return field_profile
+
+    @staticmethod
+    def correct_fields(field_profiles: Union[Tuple[()], Tuple[FieldProfile]]) -> Union[Tuple[()], Tuple[FieldProfile]]:
+        return field_profiles
+
+    @staticmethod
+    def correct_message(message: MessageProfile) -> MessageProfile:
+        return message
+
+    @staticmethod
+    def correct_messages(messages: Union[Tuple[()], Tuple[MessageProfile]]) -> Union[Tuple[()], Tuple[MessageProfile]]:
+        # Pad is a special type of message that contains no fields. It has an entry in mseg_num, but no corresponding message definition
+        # To get more information on pad see: https://www.thisisant.com/forum/viewthread/7217/
+        return messages + tuple([MessageProfile('pad', ())])
+
+    @staticmethod
+    def correct_profile(profile: "Profile") -> "Profile":
+        return profile
+
+
+class ProfileCorrector211000(ProfileCorrector):
+    """
+    Extends the base ProfileCorrector to account for the 21.10.00 version specific corrections
+    """
+    pass
+
+
+class ProfileCorrector209600(ProfileCorrector):
+    """
+    Extends the base ProfileCorrector to account for the 20.96.00 version specific corrections
+    """
+    pass
+
+
+"""
+Given a profile version, you will be able to obtain the class of the default corrector for that version
+"""
+DEFAULT_PROFILE_CORRECTOR = {
+    ProfileVersion.Version_21_10_00:  ProfileCorrector211000(),
+    ProfileVersion.Version_20_96_00: ProfileCorrector209600(),
+}
+
+
 @dataclass(frozen=True)
 class Profile:
     """
@@ -144,7 +216,7 @@ class Profile:
         return set(element for element in elements if element in s or s.add(element))
 
     @staticmethod
-    def _non_fatal_error(message: str, strict: bool = False):
+    def _non_fatal_error(message: str, strict: bool):
         """
         Issues a error or warning given a non fatal error message depending on the strict input
         """
@@ -154,7 +226,7 @@ class Profile:
             warnings.warn(message, ProfileContentWarning)
 
     @staticmethod
-    def _parse_type(type_data: DataTable, version: ProfileVersion, strict: bool = False) -> TypeProfile:
+    def _parse_type(type_data: DataTable, version: ProfileVersion, profile_corrector: ProfileCorrector, strict: bool) -> TypeProfile:
         """
         This low level function will return a TypeProfile given a plain data table. The first row should contain the type name,
          base type and a comment the following rows should contain the data for the type named values
@@ -171,10 +243,13 @@ class Profile:
 
         # Replace floating point constant into ints as xlrd will load ints as floats
         for row in type_data:
-            if isinstance(row[3], float):
-                row[3] = int(row[3])
+            Profile._to_int(row, 3)
 
-        type_profile = TypeProfile(type_data[0][0], type_data[0][1], type_data[0][4], tuple([ValueProfile(*v[2:]) for v in type_data[1:]]))
+        named_values = [NamedValueProfile(*v[2:]) for v in type_data[1:]]
+        names_values = tuple([profile_corrector.correct_named_value(named_value) for named_value in named_values])
+        named_values = profile_corrector.correct_named_values(names_values)
+        type_profile = TypeProfile(type_data[0][0], type_data[0][1], type_data[0][4], named_values)
+        type_profile = profile_corrector.correct_type(type_profile)
 
         # Check that the type name is not empty
         if not type_profile.name:
@@ -207,7 +282,7 @@ class Profile:
         return type_profile
 
     @staticmethod
-    def _parse_types(types_table: DataTable, version: ProfileVersion, strict: bool = True) -> Tuple[TypeProfile]:
+    def _parse_types(types_table: DataTable, version: ProfileVersion, profile_corrector: ProfileCorrector, strict: bool) -> Tuple[TypeProfile]:
         """
         Low level function that given the types data will return a tuple of types. It will also perform some consistency checks
         """
@@ -217,33 +292,41 @@ class Profile:
 
         # Split the contents of the types ignoring the first row which are the headers
         split_types = Profile._split(types_table[1:])
-        types = [Profile._parse_type(type_data, version, strict) for type_data in split_types]
+        types = tuple([Profile._parse_type(type_data, version, profile_corrector, strict) for type_data in split_types])
+        types = profile_corrector.correct_types(types)
 
         # Check for duplicate types
         duplicate_type_names = Profile.duplicates(type_def.name for type_def in types)
         if duplicate_type_names:
             raise ProfileContentError(f'Profile {version.version_str()} has duplicate type names: {", ".join(duplicate_type_names)}')
 
-        return tuple(types)
+        return types
 
     @staticmethod
-    def _to_int(array: DataRow, index: int):
+    def _to_int(row: DataRow, index: int):
         """
-        Helper function that will cast a given index of a list into int unless the value is '' in which case it will replace it with None
+        Helper function that will cast a given index of a list into int if it is of type float
         """
-        if array[index] != '':
-            array[index] = int(array[index])
-        else:
-            array[index] = None
-        return array
+        if isinstance(row[index], float):
+            row[index] = int(row[index])
+
+        return row
 
     @staticmethod
-    def _parse_message(message_data: DataTable) -> MessageProfile:
+    def _parse_message(message_data: DataTable, profile_corrector: ProfileCorrector) -> MessageProfile:
         """
-        This function will return a MessageProfile given a plain data table. The first row should contain the message name
+        This low level function will return a MessageProfile given a plain data table. The first row should contain the message name
         the following rows should contain the data for the message fields
         """
-        return MessageProfile(message_data[0][0], tuple([FieldProfile(*Profile._to_int(f[1:], 0)) for f in message_data[1:]]))
+        fields = [FieldProfile(*Profile._to_int(f[1:], 0)) for f in message_data[1:]]
+        fields = [profile_corrector.correct_field(field) for field in fields]
+        fields = profile_corrector.correct_fields(tuple(fields))
+        message = MessageProfile(message_data[0][0], tuple(fields))
+        message = profile_corrector.correct_message(message)
+
+        # TODO check ref names and components exist
+
+        return message
 
     @staticmethod
     def _extract_data(sheet: xlrd.sheet.Sheet) -> DataTable:
@@ -256,10 +339,16 @@ class Profile:
         return [[sheet.cell_value(row, col) for col in range(0, cols)] for row in range(0, rows)]
 
     @staticmethod
-    def _parse_messages(messages_table: DataTable, version: ProfileVersion, strict: bool = False, add_pad_message_profile: bool = True) -> Tuple[MessageProfile]:
+    def _parse_messages(messages_table: DataTable, version: ProfileVersion, profile_corrector: ProfileCorrector) -> Tuple[MessageProfile]:
+        """
+        This low level function will return a tuple of message profiles given the raw data in the profiles sheet
+        """
+
         # Split the contents of the messages ignoring the first row which are the headers
         split_messages = Profile._split(messages_table[1:])
-        messages = [Profile._parse_message(message_data) for message_data in split_messages]
+        messages = [Profile._parse_message(message_data, profile_corrector) for message_data in split_messages]
+        messages = tuple([profile_corrector.correct_message(message) for message in messages])
+        messages = profile_corrector.correct_messages(messages)
 
         # Check for duplicate messages
         message_names = [message.name for message in messages]
@@ -267,12 +356,7 @@ class Profile:
         if duplicate_message_types:
             raise ProfileContentError(f'Profile {version.version_str()} has duplicate message types: {", ".join(duplicate_message_types)}')
 
-        # We add a pad message if required
-        if 'pad' not in message_names and add_pad_message_profile:
-            message_names.append('pad')
-            messages.append(MessageProfile('pad', ()))
-
-        return tuple(messages)
+        return messages
 
     @staticmethod
     def _split(table: DataTable) -> List[DataTable]:
@@ -293,33 +377,30 @@ class Profile:
         return split_content
 
     @staticmethod
-    def _from_tables(types_table: DataTable, messages_table: DataTable, version: ProfileVersion, strict: bool = False, add_pad_message_profile: bool = True) -> "Profile":
+    def _from_tables(types_table: DataTable, messages_table: DataTable, version: ProfileVersion, profile_corrector: ProfileCorrector, strict: bool) -> "Profile":
         """
         Low level function that given plain data corresponding to the profile information will create a profile object
         There are certain inconsistencies in the file that by default are just reported as a warning use strict=True to turn them into errors
-        Pad is a special type of message that contains no fields. It has an entry in mseg_num, but no corresponding message definition
-        by default a message profile entry will be created for pad, use add_pad_message_profile=False to disable that
-        To get more information on pad see: https://www.thisisant.com/forum/viewthread/7217/
         """
 
-        types = Profile._parse_types(types_table, version)
-        messages = Profile._parse_messages(messages_table, version, strict, add_pad_message_profile)
+        types = Profile._parse_types(types_table, version, profile_corrector, strict)
+        messages = Profile._parse_messages(messages_table, version, profile_corrector)
 
         # We find the mesg_num type definition since we know it is an enum like type that contains all the known messages
-        mesg_num_def = None
+        mesg_num_profile = None
         for type_def in types:
             if type_def.name == 'mesg_num':
-                mesg_num_def = type_def
+                mesg_num_profile = type_def
                 break
 
         # If there is no mesg_num type, the profile data is inconsistent
-        if not mesg_num_def:
+        if not mesg_num_profile:
             raise ProfileContentError('The profile does not contain a "mesg_num" type definition')
 
         # We perform some consistency checks
         message_names = [message.name for message in messages]
         missing_message_type = []
-        for value in mesg_num_def.values:
+        for value in mesg_num_profile.values:
             if value.name not in message_names:  # If there is no message found
                 if value.name not in ['mfg_range_min', 'mfg_range_max']:  # And the name is not one of the manufacturer specific range constants
                     missing_message_type.append(f'{value.name} ({value.value})')  # We add it to the missing messages
@@ -327,33 +408,30 @@ class Profile:
         # Issue the errors / warnings
         if missing_message_type:
             error_message = f'Profile {version.version_str()} has an entry in mesg_num for [{", ".join(missing_message_type)}] but no corresponding message definition'
-            if strict:
-                raise ProfileContentError(error_message)
-            else:
-                warnings.warn(error_message, ProfileContentWarning)
+            Profile._non_fatal_error(error_message, strict)
 
         # We check for messages that have been defined, but do not have a corresponding entry in mesg_num
         missing_mesg_num_value = []
         for message_name in message_names:
-            if message_name not in [value.name for value in mesg_num_def.values]:
+            if message_name not in [value.name for value in mesg_num_profile.values]:
                 missing_mesg_num_value.append(message_name)
 
         # Issue the errors / warnings
         if missing_mesg_num_value:
             error_message = f'Profile {version.version_str()} has message definition for [{", ".join(missing_mesg_num_value)}] but no corresponding value in mesg_num'
-            if strict:
-                raise ProfileContentError(error_message)
-            else:
-                warnings.warn(error_message, ProfileContentWarning)
+            Profile._non_fatal_error(error_message, strict)
 
-        return Profile(version, types, messages)
+        return profile_corrector.correct_profile(Profile(version, types, messages))
 
     @staticmethod
-    def from_xlsx(file: Union[str, bytes], version: ProfileVersion, strict: bool = False, add_pad_message_profile: bool = True) -> "Profile":
+    def from_xlsx(file: Union[str, bytes], version: ProfileVersion, profile_corrector: ProfileCorrector = None, strict: bool = False) -> "Profile":
         """
         This high level function will take either the file name or the bytes content of the file and parse the corresponding profile
         See from_tables() for information on the optional arguments
         """
+
+        if not profile_corrector:
+            profile_corrector = DEFAULT_PROFILE_CORRECTOR[version]
 
         # Get the contents of the xlsx file
         if type(file) == str:
@@ -382,7 +460,7 @@ class Profile:
         messages_table = Profile._extract_data(messages_sheet)
 
         # Hand over to the profile parser from plain data
-        return Profile._from_tables(types_table, messages_table, version, strict, add_pad_message_profile)
+        return Profile._from_tables(types_table, messages_table, version, profile_corrector, strict)
 
     @staticmethod
     def _sha256(file_name: str) -> str:
@@ -402,7 +480,7 @@ class Profile:
         return algo.hexdigest().upper()
 
     @staticmethod
-    def from_sdk_zip(file_name: str, strict: bool = False, add_pad_message_profile: bool = True) -> "Profile":
+    def from_sdk_zip(file_name: str, profile_corrector: ProfileCorrector, strict: bool = False) -> "Profile":
         """
         High level function that given the SDK file will do all the necessary steps to extract a profile
         It is the most convenient way to create a profile object
@@ -421,5 +499,8 @@ class Profile:
         zf = zipfile.ZipFile(file_name, 'r')
         zip_file_content = zf.read('Profile.xlsx')
 
+        if not profile_corrector:
+            profile_corrector = DEFAULT_PROFILE_CORRECTOR[version]
+
         # Hand over to the profile parser given an xlsx file
-        return Profile.from_xlsx(zip_file_content, version, strict, add_pad_message_profile)
+        return Profile.from_xlsx(zip_file_content, version, profile_corrector, strict)
