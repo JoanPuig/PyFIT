@@ -89,6 +89,7 @@ class TypeProfile:
     comment: str
     values: Tuple[NamedValueProfile]
 
+
 @dataclass(frozen=True)
 class ComponentProfile:
     destination_field: str
@@ -492,7 +493,8 @@ class Profile:
     def _from_tables(types_table: DataTable, messages_table: DataTable, version: ProfileVersion, profile_corrector: ProfileCorrector, strict: bool) -> "Profile":
         """
         Low level function that given plain data corresponding to the profile information will create a profile object
-        There are certain inconsistencies in the file that by default are just reported as a warning use strict=True to turn them into errors
+        A profile corrector will correct minor inconsistencies or known issues with the particular profile
+        Use strict=True/False to turn certain non fatal inconsistencies in the file into errors/warnings
         """
 
         types = Profile._parse_types(types_table, version, profile_corrector, strict)
@@ -533,10 +535,17 @@ class Profile:
             error_message = f'Profile {version.version_str()} has message definition for {missing_mesg_num_value} but no corresponding value in mesg_num'
             Profile._non_fatal_error(error_message, strict)
 
+        # Check that all types in message fields are defined
+        type_names = [type_profile.name for type_profile in types] + [BASE_TYPE_NAME_MAP.keys()]
+        for message in messages:
+            for field in message.fields:
+                if field.type not in type_names:
+                    raise ProfileContentError(f'Profile {version.version_str()} message "{message.name}" field "{field.name}" has undefined type "{field.type}"')
+
         return profile_corrector.correct_profile(Profile(version, types, messages))
 
     @staticmethod
-    def from_xlsx(file: Union[str, bytes], version: ProfileVersion, profile_corrector: ProfileCorrector = None, strict: bool = False) -> "Profile":
+    def from_xlsx(file: Union[str, bytes], version: ProfileVersion, profile_corrector: ProfileCorrector = None, strict: bool = True) -> "Profile":
         """
         This high level function will take either the file name or the bytes content of the file and parse the corresponding profile
         See from_tables() for information on the optional arguments
@@ -593,10 +602,10 @@ class Profile:
         return algo.hexdigest().upper()
 
     @staticmethod
-    def from_sdk_zip(file_name: str, profile_corrector: ProfileCorrector = None, strict: bool = False) -> "Profile":
+    def from_sdk_zip(file_name: str, profile_corrector: ProfileCorrector = None, strict: bool = True) -> "Profile":
         """
         High level function that given the SDK file will do all the necessary steps to extract a profile
-        It is the most convenient way to create a profile object
+        It is the most convenient way to create a profile object which is later needed to generate the code
         See from_tables() for information on the optional arguments
         """
 
