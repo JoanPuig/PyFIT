@@ -223,8 +223,7 @@ class TypeCodeGenerator(CodeGenerator):
                     value_name = CodeGenerator.capitalize_type_name(value.name)
                     CodeGenerator.check_valid_name(value_name)
 
-                    #if type_name != 'MesgNum':
-                    if type(value.value) == str:
+                    if isinstance(value.value, str):
                         value_str = f'{value.value}'
                         if int(value.value, 0) == parent_type_invalid_value:
                             has_invalid_value = True
@@ -338,33 +337,19 @@ class MessageCodeGenerator(CodeGenerator):
                     'name': field.name,
                     'type': 'FIT.types.' + CodeGenerator.capitalize_type_name(BASE_TYPE_NAME_MAP.get(field.type, field.type)),
                     'comment': field.comment,
-                    'is_scalar': not field.array,
+                    'is_scalar': None,
                     'number': field.number,
-                    'offset': field.offset,
-                    'units': field.units,
-                    'ref_field_name': field.ref_field_name
+                    'offset': None,
+                    'units': None,
+                    'ref_field_name': None,
                 }
 
-                if field.scale:
-                    rf['scale'] = field.scale
-                else:
-                    rf['scale'] = 1
-
-                if field.offset:
-                    rf['offset'] = field.offset
-                else:
-                    rf['offset'] = 0
-
-                if field.units:
-                    rf['units'] = field.units
-                else:
-                    rf['units'] = 'dimensionless'
+                rf['scale'] = 1
+                rf['offset'] = 0
+                rf['units'] = None
 
                 if field.type == 'bool':
                     rf['type'] = 'bool'
-
-                if not rf['is_scalar'] and not rf['type'] == 'String':
-                    rf['type'] = f'Tuple[{rf["type"]}]'
 
                 resolved_fields.append(rf)
 

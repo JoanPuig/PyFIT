@@ -288,13 +288,16 @@ class Profile:
 
         units = set()
         for message in self.messages:
-            if isinstance(message, MessageScalarFieldProfile):
-                if message.units:
-                    units.add(message.units)
-            elif isinstance(message, MessageComponentFieldProfile):
-                for component in message.components:
-                    if component.units:
-                        units.add(component.units)
+            for field in message.fields:
+                if isinstance(field, MessageScalarFieldProfile):
+                    if field.units:
+                        units.add(field.units)
+                elif isinstance(field, MessageComponentFieldProfile):
+                    for component in field.components:
+                        if component.units:
+                            units.add(component.units)
+                else:
+                    raise ProfileContentError(f'Unexpected MessageFieldProfile implementation {type(field)}')
 
         units = list(units)
         units.sort(key=str.lower)
