@@ -430,6 +430,7 @@ class Profile:
         See from_tables() for information on the optional arguments
         """
 
+        # obtain the default corrector for the version if not explicitly specified
         if not profile_corrector:
             profile_corrector = DEFAULT_PROFILE_CORRECTOR[version]
 
@@ -480,7 +481,7 @@ class Profile:
         return algo.hexdigest().upper()
 
     @staticmethod
-    def from_sdk_zip(file_name: str, profile_corrector: ProfileCorrector, strict: bool = False) -> "Profile":
+    def from_sdk_zip(file_name: str, profile_corrector: ProfileCorrector = None, strict: bool = False) -> "Profile":
         """
         High level function that given the SDK file will do all the necessary steps to extract a profile
         It is the most convenient way to create a profile object
@@ -499,6 +500,7 @@ class Profile:
         zf = zipfile.ZipFile(file_name, 'r')
         zip_file_content = zf.read('Profile.xlsx')
 
+        # obtain the default corrector for the version if not explicitly specified
         if not profile_corrector:
             profile_corrector = DEFAULT_PROFILE_CORRECTOR[version]
 

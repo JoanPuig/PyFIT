@@ -5,6 +5,7 @@
 import pytest
 
 from FIT.profile import Profile, ProfileVersion, ProfileContentError, ProfileContentWarning, DEFAULT_PROFILE_CORRECTOR
+from test.test_common import all_sdk_files
 
 
 def test_duplicates():
@@ -99,3 +100,37 @@ def test_parse_types():
 
     with pytest.raises(ProfileContentError):
         te = Profile._parse_type(tt + [['NAME_1', 'enum', '', '', '']], pv, pc, True)
+
+
+def test_to_int():
+    assert Profile._to_int([''], 0) == ['']
+    assert Profile._to_int([1.0], 0) == [1]
+    assert Profile._to_int(['a', 'b'], 0) == ['a', 'b']
+    assert Profile._to_int(['a', 1.0, 'b'], 1) == ['a', 1, 'b']
+    assert Profile._to_int(['a', 1.0, 'b'], 0) == ['a', 1.0, 'b']
+
+
+def test_extract_data():
+    pass
+
+
+def test_parse_messages():
+    pass
+
+
+def test_split():
+    pass
+
+
+def test_from_tables():
+    pass
+
+
+def test_from_xlsx():
+    pass
+
+
+@pytest.mark.parametrize('file', all_sdk_files())
+def test_from_sdk_zip(file: str):
+    profile = Profile.from_sdk_zip(file)
+
