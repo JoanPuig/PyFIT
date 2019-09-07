@@ -114,6 +114,18 @@ def test_parse_tuple():
     pass
 
 
+def _parse_str_component_value():
+    pass
+
+
+def _parse_int_component_value():
+    pass
+
+
+def _parse_bool_component_value():
+    pass
+
+
 def test_if_empty_string():
     pass
 

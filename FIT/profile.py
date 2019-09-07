@@ -118,7 +118,7 @@ class MessageFieldProfile:
     comment: str
     product: str
     example: Union[str, int]
-    dynamic_field_matchers: Tuple[DynamicFieldMatcher]
+    dynamic_field_matchers: Union[Tuple[()], Tuple[DynamicFieldMatcher]]
 
 
 @dataclass(frozen=True)
@@ -365,8 +365,44 @@ class Profile:
             return val
 
     @staticmethod
-    def _parse_tuple(val: str) -> Tuple:
-        return val
+    def _parse_tuple(val: str) -> Union[Tuple[()], Tuple[str]]:
+        if val == '':
+            return ()
+        else:
+            return tuple([split_val.strip() for split_val in val.split(',')])
+
+    @staticmethod
+    def _parse_str_component_value(val: str, num_components: int) -> Union[Tuple[None], Tuple[str]]:
+        if val == '':
+            return (None,) * num_components
+        else:
+            tmp = Profile._parse_tuple(val)
+            if len(tmp) == 1 and len(tmp) != num_components:
+                return tmp * num_components
+            else:
+                return tmp
+
+    @staticmethod
+    def _parse_int_component_value(val: Union[str, int, float], num_components: int) -> Union[Tuple[None], Tuple[int]]:
+        if isinstance(val, float) or isinstance(val, int):
+            return (val,) * num_components
+        else:
+            if val == '':
+                return (None,) * num_components
+            else:
+                return tuple([int(v) for v in Profile._parse_tuple(val)])
+
+    @staticmethod
+    def _parse_bool_component_value(val: Union[str, int, float], num_components: int) -> Union[Tuple[None], Tuple[bool]]:
+        if isinstance(val, bool):
+            return (val,) * num_components
+        elif isinstance(val, int) or isinstance(val, float):
+            return (val == 1,) * num_components
+        else:
+            if val == '':
+                return (None,) * num_components
+            else:
+                return tuple([int(v) == 1 for v in Profile._parse_tuple(val)])
 
     @staticmethod
     def _parse_message_field(row: DataRow, version: ProfileVersion, profile_corrector: ProfileCorrector, message_name: str) -> MessageFieldProfile:
@@ -378,30 +414,42 @@ class Profile:
         field_type = row[3]
         array = Profile._if_empty_string(row[4], None)
 
-        ref_field_name = Profile._parse_tuple(row[11])
-        ref_field_value = Profile._parse_tuple(row[12])
-        matchers = None
+        if row[11] != '' or row[12] != '':
+            ref_field_names = Profile._parse_tuple(row[11])
+            ref_field_values = Profile._parse_tuple(row[12])
+            matchers = tuple([DynamicFieldMatcher(ref_field_name, ref_field_value) for (ref_field_name, ref_field_value) in zip(ref_field_names, ref_field_values)])
+        else:
+            matchers = ()
 
         comment = row[13]
         product = row[14]
         example = row[15]
 
         components = Profile._if_empty_string(row[5], None)
-        if components is None:
-            scale = Profile._if_empty_string(row[6], None)
-            offset = Profile._if_empty_string(row[7], None)
-            units = Profile._if_empty_string(row[8], None)
-            bits = Profile._if_empty_string(row[9], None)
-            accumulated = Profile._if_empty_string(row[10], False)
-            field_profile = None  # TODO components
+        if components is not None:
+            components = Profile._parse_tuple(components)
+            scale = Profile._parse_int_component_value(row[6], len(components))
+            offset = Profile._parse_int_component_value(row[7], len(components))
+            units = Profile._parse_str_component_value(row[8], len(components))
+            bits = Profile._parse_int_component_value(row[9], len(components))
+            accumulated = Profile._parse_bool_component_value(row[10], len(components))
+
+            component_profiles = []
+            for i in range(0, len(components)):
+                component_profiles.append(ComponentProfile(components[i], scale[i], offset[i], units[i], bits[i], accumulated[i]))
+
+            field_profile = MessageComponentFieldProfile(number, name, field_type, array, comment, product, example, matchers, tuple(component_profiles))  # TODO components
         else:
             scale = Profile._if_empty_string(row[6], None)
             offset = Profile._if_empty_string(row[7], None)
             units = Profile._if_empty_string(row[8], None)
-            bits = Profile._if_empty_string(row[9], None)
             accumulated = Profile._if_empty_string(row[10], False)
 
             field_profile = MessageScalarFieldProfile(number, name, field_type, array, comment, product, example, matchers, scale, offset, units, accumulated)
+
+        if field_profile.dynamic_field_matchers != ():
+            if field_profile.number is not None:
+                ProfileContentError(f'Profile {version.version_str()} message "{message_name}" field "{field_profile.name}" has both a field number and a ref_field_name value')
 
         return profile_corrector.correct_field(field_profile)
 
@@ -425,18 +473,18 @@ class Profile:
         message = MessageProfile(message_name, tuple(fields))
         message = profile_corrector.correct_message(message)
 
+        field_names = [inner_field.name for inner_field in message.fields]
         for i in range(0, len(message.fields)):
             field = message.fields[i]
-            # Check that the reference fields of the dynamic fields exist prior to this field definition
+            # Check that the reference fields of the dynamic fields exist
             for marcher in field.dynamic_field_matchers:
-                if marcher.ref_field_name not in [inner_field.name for inner_field in message.fields[:i]]:
+                if marcher.ref_field_name not in field_names:
                     raise ProfileContentError(f'Profile {version.version_str()} message "{message.name}" dynamic field "{field.name}" has unknown ref_field_name "{marcher.ref_field_name}"')
 
             # In case it is a component field, we check that the destination field exists after this field
             if isinstance(field, MessageComponentFieldProfile):
-                posterior_fields = [inner_field.name for inner_field in message.fields[i+1:]]
                 for component in field.components:
-                    if component.destination_field not in posterior_fields:
+                    if component.destination_field not in field_names:
                         raise ProfileContentError(f'Profile {version.version_str()} message "{message.name}" component field "{field.name}" has unknown destination field "{component.destination_field}"')
 
         return message
@@ -536,7 +584,7 @@ class Profile:
             Profile._non_fatal_error(error_message, strict)
 
         # Check that all types in message fields are defined
-        type_names = [type_profile.name for type_profile in types] + [BASE_TYPE_NAME_MAP.keys()]
+        type_names = [type_profile.name for type_profile in types] + list(BASE_TYPE_NAME_MAP.keys())
         for message in messages:
             for field in message.fields:
                 if field.type not in type_names:
