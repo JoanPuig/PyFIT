@@ -160,7 +160,7 @@ class ProfileCorrector:
     The profile corrector will be used to correct them.
     """
 
-    INVALID_VALUE_NAME_IDENTIFIERS = {
+    INVALID_VALUE_NAMES = {
         'none': 'Null',
         '4iiiis': 'Innovations4iiiis',
         '1partcarbon': 'OnePartCarbon',
@@ -175,7 +175,7 @@ class ProfileCorrector:
         '90_degree_cable_external_rotation': 'NinetyDegreeCableExternalRotation',
     }
 
-    UNIT_SYNONYMS = {
+    INVALID_UNITS = {
         '2 * cycles (steps)': 'two_cycles_steps',
         '100 * m': 'length_100_m',
         'min': 'minutes',
@@ -199,7 +199,7 @@ class ProfileCorrector:
     @staticmethod
     def correct_named_value(named_value_profile: NamedValueProfile) -> NamedValueProfile:
         old_name = named_value_profile.name
-        new_name = ProfileCorrector.INVALID_VALUE_NAME_IDENTIFIERS.get(old_name, old_name)
+        new_name = ProfileCorrector.INVALID_VALUE_NAMES.get(old_name, old_name)
         return NamedValueProfile(new_name, named_value_profile.value, named_value_profile.comment)
 
     @staticmethod
@@ -224,13 +224,14 @@ class ProfileCorrector:
         # A bool type is referenced but not defined either as a base type or derived
         # https://www.thisisant.com/forum/viewthread/6656/
 
+        # Must be all capitals otherwise it conflicts with Pythons True / False
         named_values = (
             NamedValueProfile('TRUE', 1, ''),
             NamedValueProfile('FALSE', 0, '')
         )
 
         bool_type = TypeProfile('bool', 'uint8', True, 'Manually added, see: https://www.thisisant.com/forum/viewthread/6656/', named_values)
-        return tuple([bool_type] + list(type_profiles))
+        return (bool_type,) + type_profiles
 
     @staticmethod
     def correct_message_field(fp: MessageFieldProfile) -> MessageFieldProfile:
@@ -241,7 +242,7 @@ class ProfileCorrector:
             if u is None:
                 return None
             else:
-                return ProfileCorrector.UNIT_SYNONYMS.get(u, u).replace(' ', '_').replace('^', '').replace('/', '_per_').replace('%', 'percent')
+                return ProfileCorrector.INVALID_UNITS.get(u, u).replace(' ', '_').replace('^', '').replace('/', '_per_').replace('%', 'percent')
 
         if isinstance(fp, MessageComponentFieldProfile):
             new_components = []
