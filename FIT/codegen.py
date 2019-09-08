@@ -316,24 +316,11 @@ class MessageCodeGenerator(CodeGenerator):
             for field in message.fields:
                 CodeGenerator._check_valid_name(field.name)
 
-                rf = {
-                    'name': field.name,
-                    'type': 'FIT.types.' + CodeGenerator._capitalize_type_name(BASE_TYPE_NAME_MAP.get(field.type, field.type)),
-                    'comment': field.comment,
-                    'is_scalar': None,
-                    'number': field.number,
-                    'offset': None,
-                    'units': None,
-                    'ref_field_name': None,
-                }
-
-                rf['scale'] = 1
-                rf['offset'] = 0
-                rf['units'] = None
-
-                if field.type == 'bool':
-                    rf['type'] = 'bool'
-
+                if field.type in BASE_TYPE_NAME_MAP:
+                    rf = {'name': field.name, 'type': CodeGenerator._capitalize_type_name(BASE_TYPE_NAME_MAP[field.type]), 'comment': field.comment}
+                else:
+                    # Need to keep the FIT.types prefix as there are some messages that have the same name as some types
+                    rf = {'name': field.name, 'type': 'FIT.types.' + CodeGenerator._capitalize_type_name(field.type), 'comment': field.comment}
                 resolved_fields.append(rf)
 
             if resolved_fields:
@@ -353,62 +340,21 @@ class MessageCodeGenerator(CodeGenerator):
 
             cw.new_line()
             cw.write('@staticmethod')
-            cw.write('@functools.lru_cache(1)')
-            cw.write('def metadata():')
-            cw.indent()
-            cw.write('@dataclass(frozen=True)')
-            cw.write(f'class {message_name}Metadata(MessageMetadata):')
-            cw.indent()
-
-            for rf in resolved_fields:
-                cw.write(f'{rf["name"]}: FieldMetadata')
-            cw.new_line()
-
-            cw.write('def __init__(self):')
-            cw.indent()
-
-            for rf in resolved_fields:
-                if rf["number"] is not None:
-                    cw.write(f'self.{rf["name"]} = NormalFieldMetadata(\'{rf["name"]}\', {rf["type"]}, {rf["scale"]}, {rf["offset"]}, None, {rf["number"]})')
-                else:
-                    cw.write(f'self.{rf["name"]} = DynamicFieldMetadata(\'{rf["name"]}\', {rf["type"]}, {rf["scale"]}, {rf["offset"]}, None, None, None)')
-            cw.new_line()
-
-            cw.write('fields_metadata = (')
-            cw.indent()
-            for rf in resolved_fields:
-                cw.write(f'self.{rf["name"]},')
-            cw.unindent()
-            cw.write(')')
-            cw.new_line()
-
-            cw.write('super().__init__(fields_metadata)')
-            cw.unindent()
-            cw.unindent()
-            cw.new_line()
-            cw.write(f'return {message_name}Metadata()')
-            cw.unindent()
-            cw.new_line()
-
-            cw.write('@staticmethod')
             cw.write(f'def from_record(record: Record, message_definition: MessageDefinition, error_on_invalid_enum_value: bool = True) ->  "{message_name}":')
             cw.indent()
             cw.write('developer_fields = Message.developer_fields_from_record(record, message_definition, error_on_invalid_enum_value)')
             cw.write(f'undocumented_fields = Message.undocumented_fields_from_record(record.content, message_definition, ({", ".join([str(field.number) for field in message.fields if field.number is not None])}), error_on_invalid_enum_value)')
-            cw.write('field_map = message_definition.mapped_field_definitions()')
-            cw.write('fields = record.content.fields')
-            cw.write(f'mn = \'{message_name}\'')
+            if len(message.fields) > 0:
+                cw.new_line()
+                for field in message.fields:
+                    cw.write(f'{field.name} = None')
+
+            common_fields = ['developer_fields', 'undocumented_fields']
             cw.new_line()
-
-            for rf in resolved_fields:
-                if rf['type'].startswith('Tuple['):
-                    rf['type'] = 'None'  # TODO: handle arrays
-                cw.write(f'{rf["name"]} = extract_value(mn, \'{rf["name"]}\', {rf["number"]}, field_map, fields, {rf["type"]}, error_on_invalid_enum_value)')
-            cw.write(f'return {message_name}({", ".join(["developer_fields", "undocumented_fields"] + [resolved_field["name"] for resolved_field in resolved_fields])})')
-            cw.unindent()
-            cw.unindent()
-
+            cw.write(f'return {message_name}({", ".join(common_fields + [m.name for m in message.fields])})')
             cw.new_line(2)
+            cw.unindent()
+            cw.unindent()
 
     @staticmethod
     def generate(profile: Profile, output_file: Optional[str] = None, **kwargs) -> str:

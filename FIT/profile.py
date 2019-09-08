@@ -221,7 +221,16 @@ class ProfileCorrector:
 
     @staticmethod
     def correct_types(type_profiles: Union[Tuple[()], Tuple[TypeProfile]]) -> Union[Tuple[()], Tuple[TypeProfile]]:
-        return type_profiles
+        # A bool type is referenced but not defined either as a base type or derived
+        # https://www.thisisant.com/forum/viewthread/6656/
+
+        named_values = (
+            NamedValueProfile('TRUE', 1, ''),
+            NamedValueProfile('FALSE', 0, '')
+        )
+
+        bool_type = TypeProfile('bool', 'uint8', True, 'Manually added, see: https://www.thisisant.com/forum/viewthread/6656/', named_values)
+        return tuple([bool_type] + list(type_profiles))
 
     @staticmethod
     def correct_message_field(fp: MessageFieldProfile) -> MessageFieldProfile:
