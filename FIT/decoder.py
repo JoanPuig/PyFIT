@@ -9,7 +9,8 @@ from enum import Enum
 
 import FIT
 from FIT.base_types import UnsignedInt8, UnsignedInt16, UnsignedInt32, UnsignedInt64, BASE_TYPE_NUMBER_TO_CLASS
-from FIT.model import MessageDefinition, File, FileHeader, Record, NormalRecordHeader, CompressedTimestampRecordHeader, FieldDefinition, Architecture, RecordField, MessageContent, Message, UndocumentedMessage, ManufacturerSpecificMessage
+from FIT.model import MessageDefinition, File, FileHeader, Record, NormalRecordHeader, CompressedTimestampRecordHeader, FieldDefinition, Architecture, RecordField, MessageContent, Message, UndocumentedMessage, ManufacturerSpecificMessage, \
+    UndocumentedMessageField, DeveloperMessageField
 
 import numpy as np
 
@@ -325,7 +326,7 @@ class Decoder:
                                 warnings.warn(error_message, FITFileContentWarning)
                                 warned_undocumented_msg_num.append(error_message)
 
-            else:
+            elif isinstance(record.content, MessageContent):
                 local_message_type = record.header.local_message_type
 
                 if local_message_type not in definitions:
@@ -347,7 +348,10 @@ class Decoder:
                         message_class = UndocumentedMessage
                         class_name = UndocumentedMessage.__name__
 
-                message = message_class.from_record(record, message_definition, error_on_invalid_enum_value)
+                developer_fields = Decoder.extract_developer_fields(record, message_definition, error_on_invalid_enum_value)
+                expected_field_numbers = message_class.expected_field_numbers()
+                undocumented_fields = Decoder.extract_undocumented_fields(record.content, message_definition, expected_field_numbers, error_on_invalid_enum_value)
+                message = message_class.from_extracted_fields({}, developer_fields, undocumented_fields, error_on_invalid_enum_value)
 
                 for undocumented_field in message.undocumented_fields:
                     error_message = f'{class_name} message has undocumented field number {undocumented_field.definition.number}'
@@ -360,32 +364,50 @@ class Decoder:
                             warned_undocumented_fields.append(error_message)
 
                 messages.append(message)
+            else:
+                raise FITFileContentError(f'Unexpected record type: {type(record)}')
 
         return tuple(messages)
 
+    @staticmethod
+    def extract_developer_fields(record: Record, message_definition: MessageDefinition, error_on_invalid_enum_value: bool = True) -> Tuple[DeveloperMessageField]:
+        developer_fields = []
+        for developer_field in record.content.developer_fields:
+            pass  # TODO developer fields from record
+        return tuple(developer_fields)
 
-def extract_value(message_name: str, field_name: str, number: UnsignedInt8, field_map: Dict[UnsignedInt8, Tuple[int, FieldDefinition]], fields: Tuple[RecordField], field_type, error_on_invalid_enum_value: bool = True):
-    if number:
-        if number in field_map:
-            index, definition = field_map[number]
-            value = fields[index].value
-            if not field_type:
-                return value
-            if issubclass(field_type, Enum):
-                if value in field_type._value2member_map_:
-                    return field_type(value)
-                else:
-                    error_message = f'Field "{field_name}" of type "{field_type.__name__}" in message "{message_name, value}" has unrecognized value "{value}"'
-                    if error_on_invalid_enum_value:
-                        raise FITFileContentError(error_message)
+    @staticmethod
+    def extract_undocumented_fields(content: MessageContent, definition: MessageDefinition, expected_field_numbers: Tuple[int] = (), error_on_invalid_enum_value: bool = True) -> Tuple[UndocumentedMessageField]:
+        undocumented = []
+        for field_id, (field_position, field_definition) in definition.mapped_field_definitions().items():
+            if field_id not in expected_field_numbers:
+                undocumented.append(UndocumentedMessageField(field_definition, content.fields[field_position].value))
+
+        return tuple(undocumented)
+
+    @staticmethod
+    def extract_value(message_name: str, field_name: str, number: UnsignedInt8, field_map: Dict[UnsignedInt8, Tuple[int, FieldDefinition]], fields: Tuple[RecordField], field_type, error_on_invalid_enum_value: bool = True):
+        if number:
+            if number in field_map:
+                index, definition = field_map[number]
+                value = fields[index].value
+                if not field_type:
+                    return value
+                if issubclass(field_type, Enum):
+                    if value in field_type._value2member_map_:
+                        return field_type(value)
                     else:
-                        warnings.warn(error_message, FITFileContentWarning)
-            else:
-                if issubclass(field_type, BASE_TYPE_NUMBER_TO_CLASS[definition.base_type]):
-                    return field_type(value)
+                        error_message = f'Field "{field_name}" of type "{field_type.__name__}" in message "{message_name, value}" has unrecognized value "{value}"'
+                        if error_on_invalid_enum_value:
+                            raise FITFileContentError(error_message)
+                        else:
+                            warnings.warn(error_message, FITFileContentWarning)
                 else:
-                    raise FITFileContentError(f'Field "{field_name}" of type "{field_type.__name__}" in message "{message_name}" has been decoded with an incompatible type "{value.__class__.__name__}"')
+                    if issubclass(field_type, BASE_TYPE_NUMBER_TO_CLASS[definition.base_type]):
+                        return field_type(value)
+                    else:
+                        raise FITFileContentError(f'Field "{field_name}" of type "{field_type.__name__}" in message "{message_name}" has been decoded with an incompatible type "{value.__class__.__name__}"')
+            else:
+                return None
         else:
             return None
-    else:
-        return None

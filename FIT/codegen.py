@@ -286,8 +286,7 @@ class MessageCodeGenerator(CodeGenerator):
         self._generate_base_type_imports()
         cw.new_line()
         cw.write('import FIT.types')
-        cw.write('from FIT.model import Record, Message, MessageDefinition, FieldDefinition, RecordField, FieldMetadata, MessageMetadata')
-        cw.write('from FIT.decoder import extract_value')
+        cw.write('from FIT.model import Record, Message, MessageDefinition, FieldDefinition, RecordField, FieldMetadata, MessageMetadata, DeveloperMessageField, UndocumentedMessageField')
         cw.write('from FIT.profile import ProfileVersion')
 
     def _generate_units(self):
@@ -335,15 +334,22 @@ class MessageCodeGenerator(CodeGenerator):
                         cw.write(f'    # {rf["comment"]}')
                     else:
                         cw.write('')
-            else:
-                cw.write('pass')
 
             cw.new_line()
             cw.write('@staticmethod')
-            cw.write(f'def from_record(record: Record, message_definition: MessageDefinition, error_on_invalid_enum_value: bool = True) ->  "{message_name}":')
+            cw.write('def expected_field_numbers() -> Tuple[int]:')
             cw.indent()
-            cw.write('developer_fields = Message.developer_fields_from_record(record, message_definition, error_on_invalid_enum_value)')
-            cw.write(f'undocumented_fields = Message.undocumented_fields_from_record(record.content, message_definition, ({", ".join([str(field.number) for field in message.fields if field.number is not None])}), error_on_invalid_enum_value)')
+            if len(message.fields) == 0:
+                cw.write('return ()')
+            elif len(message.fields) == 1:
+                cw.write(f'return ({message.fields[0].number},)')
+            else:
+                cw.write(f'return ({", ".join([str(field.number) for field in message.fields if field.number is not None])})')
+            cw.unindent()
+            cw.new_line()
+            cw.write('@staticmethod')
+            cw.write(f'def from_extracted_fields(extracted_fields, developer_fields: Tuple[DeveloperMessageField], undocumented_fields: Tuple[UndocumentedMessageField], error_on_invalid_enum_value: bool) ->  "{message_name}":')
+            cw.indent()
             if len(message.fields) > 0:
                 cw.new_line()
                 for field in message.fields:
