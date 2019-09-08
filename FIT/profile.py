@@ -85,6 +85,7 @@ class TypeProfile:
     """
     name: str
     base_type: str
+    is_enum: bool
     comment: str
     values: Tuple[NamedValueProfile]
 
@@ -186,6 +187,15 @@ class ProfileCorrector:
         '': 'dimensionless',
     }
 
+    FREE_RANGE_TYPES = (
+        'MessageIndex',
+        'UserLocalId',
+        'FitBaseUnit',
+        'DateTime',
+        'LocalDateTime',
+        'DeviceIndex'
+    )
+
     @staticmethod
     def correct_named_value(named_value_profile: NamedValueProfile) -> NamedValueProfile:
         old_name = named_value_profile.name
@@ -201,7 +211,12 @@ class ProfileCorrector:
         if type_profile.name == 'weather_report':
             # According to the comment: forecast is deprecated use hourly_forecast instead
             named_values = tuple([named_value for named_value in type_profile.values if named_value.name != 'forecast'])
-            return TypeProfile(type_profile.name, type_profile.base_type, type_profile.comment, named_values)
+            return TypeProfile(type_profile.name, type_profile.base_type, type_profile.is_enum, type_profile.comment, named_values)
+
+        # Some types appear to be enums since they have named values in them, but they can in fact take any value
+        if type_profile.name in ProfileCorrector.FREE_RANGE_TYPES:
+            return TypeProfile(type_profile.name, type_profile.base_type, False, type_profile.comment, type_profile.values)
+
         return type_profile
 
     @staticmethod
@@ -371,7 +386,7 @@ class Profile:
         named_values = profile_corrector.correct_named_values(named_values)
 
         # Create and correct the type profile
-        type_profile = TypeProfile(type_name, type_data[0][1], type_data[0][4], named_values)
+        type_profile = TypeProfile(type_name, type_data[0][1], len(named_values) > 0, type_data[0][4], named_values)
         type_profile = profile_corrector.correct_type(type_profile)
 
         # Check that the base type is known
