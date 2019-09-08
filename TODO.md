@@ -6,7 +6,6 @@
 * decode compressed timestamp message
 
 ### Message decoder ###
-* dynamic field
 * component field
 * accumulated field
 
@@ -18,6 +17,11 @@
 
 ### Testing ###
 * complete profile testing
+* base types
+* decoder
+* model
+
+### Documenting ###
 * base types
 * decoder
 * model
