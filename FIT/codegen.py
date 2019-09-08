@@ -347,6 +347,7 @@ class MessageCodeGenerator(CodeGenerator):
             if len(message.fields) > 0:
                 cw.new_line()
                 for field in message.fields:
+                    # TODO: the actual fun part
                     cw.write(f'{field.name} = None')
 
             common_fields = ['developer_fields', 'undocumented_fields']

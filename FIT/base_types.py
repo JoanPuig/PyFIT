@@ -3,6 +3,8 @@
 
 
 import functools
+from typing import Union, Tuple
+
 import numpy as np
 from dataclasses import dataclass
 
@@ -66,7 +68,7 @@ class FITEnum(np.uint8, BaseType):
         return TypeMetadata(0, False, int('0x00', 16), int('0xFF', 16), 1, 'enum', np.uint8)
 
     @staticmethod
-    def from_bytes(raw_bytes: bytes):
+    def from_bytes(raw_bytes: bytes) -> Union["FITEnum", Tuple["FITEnum"]]:
         return from_bytes(FITEnum, raw_bytes)
 
 
@@ -77,7 +79,7 @@ class UnsignedInt8(np.uint8, BaseType):
         return TypeMetadata(2, False, int('0x02', 16), int('0xFF', 16), 1, 'uint8', np.uint8)
 
     @staticmethod
-    def from_bytes(raw_bytes: bytes):  # TODO: type check [UnsignedInt8]
+    def from_bytes(raw_bytes: bytes) -> Union["UnsignedInt8", Tuple["UnsignedInt8"]]:
         return from_bytes(UnsignedInt8, raw_bytes)
 
 
@@ -88,7 +90,7 @@ class SignedInt8(np.int8, BaseType):
         return TypeMetadata(1, False, int('0x01', 16), int('0x7F', 16), 1, 'sint8', np.int8)
 
     @staticmethod
-    def from_bytes(raw_bytes: bytes):
+    def from_bytes(raw_bytes: bytes) -> Union["SignedInt8", Tuple["SignedInt8"]]:
         return from_bytes(SignedInt8, raw_bytes)
 
 
@@ -99,7 +101,7 @@ class SignedInt16(np.int16, BaseType):
         return TypeMetadata(3, True, int('0x83', 16), int('0x7FFF', 16), 2, 'sint16', np.int16)
 
     @staticmethod
-    def from_bytes(raw_bytes: bytes):
+    def from_bytes(raw_bytes: bytes) -> Union["SignedInt16", Tuple["SignedInt16"]]:
         return from_bytes(SignedInt16, raw_bytes)
 
 
@@ -110,7 +112,7 @@ class UnsignedInt16(np.uint16, BaseType):
         return TypeMetadata(4, True, int('0x84', 16), int('0xFFFF', 16), 2, 'uint16', np.uint16)
 
     @staticmethod
-    def from_bytes(raw_bytes: bytes):
+    def from_bytes(raw_bytes: bytes) -> Union["UnsignedInt16", Tuple["UnsignedInt16"]]:
         return from_bytes(UnsignedInt16, raw_bytes)
 
 
@@ -121,7 +123,7 @@ class SignedInt32(np.int32, BaseType):
         return TypeMetadata(5, True, int('0x85', 16), int('0x7FFFFFFF', 16), 4, 'sint32', np.int32)
 
     @staticmethod
-    def from_bytes(raw_bytes: bytes):
+    def from_bytes(raw_bytes: bytes) -> Union["SignedInt32", Tuple["SignedInt32"]]:
         return from_bytes(SignedInt32, raw_bytes)
 
 
@@ -132,7 +134,7 @@ class UnsignedInt32(np.uint32, BaseType):
         return TypeMetadata(6, True, int('0x86', 16), int('0xFFFFFFFF', 16), 4, 'uint32', np.uint32)
 
     @staticmethod
-    def from_bytes(raw_bytes: bytes):
+    def from_bytes(raw_bytes: bytes) -> Union["UnsignedInt32", Tuple["UnsignedInt32"]]:
         return from_bytes(UnsignedInt32, raw_bytes)
 
 
@@ -143,7 +145,7 @@ class String(str, BaseType):
         return TypeMetadata(7, False, int('0x07', 16), int('0x00', 16), 1, 'string', str)
 
     @staticmethod
-    def from_bytes(raw_bytes: bytes):
+    def from_bytes(raw_bytes: bytes) -> Union["String", Tuple["String"]]:
         return String(raw_bytes)
 
 
@@ -154,7 +156,7 @@ class Float32(np.float32, BaseType):
         return TypeMetadata(8, True, int('0x88', 16), int('0xFFFFFFFF', 16), 4, 'float32', np.float32)
 
     @staticmethod
-    def from_bytes(raw_bytes: bytes):
+    def from_bytes(raw_bytes: bytes) -> Union["Float32", Tuple["Float32"]]:
         return from_bytes(Float32, raw_bytes)
 
 
@@ -165,7 +167,7 @@ class Float64(np.float64, BaseType):
         return TypeMetadata(9, True, int('0x89', 16), int('0xFFFFFFFFFFFFFFFF', 16), 8, 'float64', np.float64)
 
     @staticmethod
-    def from_bytes(raw_bytes: bytes):
+    def from_bytes(raw_bytes: bytes) -> Union["Float64", Tuple["Float64"]]:
         return from_bytes(Float64, raw_bytes)
 
 
@@ -176,7 +178,7 @@ class UnsignedInt8z(np.uint8, BaseType):
         return TypeMetadata(10, False, int('0x0A', 16), int('0x00', 16), 1, 'uint8z', np.uint8)
 
     @staticmethod
-    def from_bytes(raw_bytes: bytes):
+    def from_bytes(raw_bytes: bytes) -> Union["UnsignedInt8z", Tuple["UnsignedInt8z"]]:
         return from_bytes(UnsignedInt8z, raw_bytes)
 
 
@@ -187,7 +189,7 @@ class UnsignedInt16z(np.uint16, BaseType):
         return TypeMetadata(11, True, int('0x8B', 16), int('0x0000', 16), 2, 'uint16z', np.uint16)
 
     @staticmethod
-    def from_bytes(raw_bytes: bytes):
+    def from_bytes(raw_bytes: bytes) -> Union["UnsignedInt16z", Tuple["UnsignedInt16z"]]:
         return from_bytes(UnsignedInt16z, raw_bytes)
 
 
@@ -198,7 +200,7 @@ class UnsignedInt32z(np.uint32, BaseType):
         return TypeMetadata(12, True, int('0x8C', 16), int('0x00000000', 16), 4, 'uint32z', np.uint32)
 
     @staticmethod
-    def from_bytes(raw_bytes: bytes):
+    def from_bytes(raw_bytes: bytes) -> Union["UnsignedInt32z", Tuple["UnsignedInt32z"]]:
         return from_bytes(UnsignedInt32z, raw_bytes)
 
 
@@ -209,7 +211,7 @@ class Byte(np.uint8, BaseType):
         return TypeMetadata(13, False, int('0x0D', 16), int('0xFF', 16), 1, 'byte', np.uint8)
 
     @staticmethod
-    def from_bytes(raw_bytes: bytes):
+    def from_bytes(raw_bytes: bytes) -> Union["Byte", Tuple["Byte"]]:
         return from_bytes(Byte, raw_bytes)
 
 
@@ -220,7 +222,7 @@ class SignedInt64(np.int64, BaseType):
         return TypeMetadata(14, True, int('0x8E', 16), int('0x7FFFFFFFFFFFFFFF', 16), 8, 'sint64', np.int64)
 
     @staticmethod
-    def from_bytes(raw_bytes: bytes):
+    def from_bytes(raw_bytes: bytes) -> Union["SignedInt64", Tuple["SignedInt64"]]:
         return from_bytes(SignedInt64, raw_bytes)
 
 
@@ -231,7 +233,7 @@ class UnsignedInt64(np.uint64, BaseType):
         return TypeMetadata(15, True, int('0x8F', 16), int('0xFFFFFFFFFFFFFFFF', 16), 8, 'uint64', np.uint64)
 
     @staticmethod
-    def from_bytes(raw_bytes: bytes):
+    def from_bytes(raw_bytes: bytes) -> Union["UnsignedInt64", Tuple["UnsignedInt64"]]:
         return from_bytes(UnsignedInt64, raw_bytes)
 
 
@@ -242,7 +244,7 @@ class UnsignedInt64z(np.uint64, BaseType):
         return TypeMetadata(16, True, int('0x90', 16), int('0x0000000000000000', 16), 8, 'uint64z', np.uint64)
 
     @staticmethod
-    def from_bytes(raw_bytes: bytes):
+    def from_bytes(raw_bytes: bytes) -> Union["UnsignedInt64z", Tuple["UnsignedInt64z"]]:
         return from_bytes(UnsignedInt64z, raw_bytes)
 
 
