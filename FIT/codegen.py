@@ -290,6 +290,7 @@ class MessageCodeGenerator(CodeGenerator):
         cw.write('import FIT.types')
         cw.write('from FIT.model import Record, Message, MessageDefinition, FieldDefinition, RecordField, FieldMetadata, MessageMetadata, DeveloperMessageField, UndocumentedMessageField')
         cw.write('from FIT.profile import ProfileVersion')
+        cw.write('from FIT.decoder import Decoder')
 
     def _generate_units(self):
         cw = self.code_writer
@@ -358,7 +359,10 @@ class MessageCodeGenerator(CodeGenerator):
                 for i in order:
                     field = message.fields[i]
                     if field.number is not None:
-                        cw.write(f'{field.name} = extracted_fields[{field.number}]')
+                        if field.type in BASE_TYPE_NAME_MAP:
+                            cw.write(f'{field.name} = Decoder.cast_value(extracted_fields[{field.number}], FIT.base_types.{CodeGenerator._capitalize_type_name(BASE_TYPE_NAME_MAP[field.type])}, error_on_invalid_enum_value)')
+                        else:
+                            cw.write(f'{field.name} = Decoder.cast_value(extracted_fields[{field.number}], FIT.types.{CodeGenerator._capitalize_type_name(field.type)}, error_on_invalid_enum_value)')
                     else:
                         cw.write(f'{field.name} = None')
                         reinterpreted_field_name = None
@@ -371,7 +375,7 @@ class MessageCodeGenerator(CodeGenerator):
                             ref_field_value = matcher.ref_field_value
                             ref_field_profile = [field for field in message.fields if field.name == matcher.ref_field_name][0]
                             rftn = CodeGenerator._capitalize_type_name(ref_field_profile.type)
-                            if ref_field_profile.type in BASE_TYPE_NAME_MAP.keys():
+                            if ref_field_profile.type in BASE_TYPE_NAME_MAP:
                                 if isinstance(ref_field_value, str):
                                     val = f'FIT.base_types.{rftn}(\'{ref_field_value}\')'
                                 else:
@@ -384,7 +388,11 @@ class MessageCodeGenerator(CodeGenerator):
 
                             cw.write(f'if {matcher.ref_field_name} == {val}:')
                             cw.indent()
-                            cw.write(f'{field.name} = FIT.types.{CodeGenerator._capitalize_type_name(field.type)}({reinterpreted_field_name})')
+                            if field.type in BASE_TYPE_NAME_MAP:
+                                cw.write(f'{field.name} = Decoder.cast_value({reinterpreted_field_name}, FIT.base_types.{CodeGenerator._capitalize_type_name(BASE_TYPE_NAME_MAP[field.type])}, error_on_invalid_enum_value)')
+                            else:
+                                cw.write(f'{field.name} = Decoder.cast_value({reinterpreted_field_name}, FIT.types.{CodeGenerator._capitalize_type_name(field.type)}, error_on_invalid_enum_value)')
+
                             cw.unindent()
                             # TODO components
 

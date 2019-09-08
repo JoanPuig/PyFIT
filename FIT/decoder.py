@@ -6,6 +6,7 @@ import importlib
 import warnings
 from typing import Dict, Union, Optional, Tuple, Any
 from enum import Enum
+import sys
 
 import FIT
 from FIT.base_types import UnsignedInt8, UnsignedInt16, UnsignedInt32, UnsignedInt64, BASE_TYPE_NUMBER_TO_CLASS
@@ -398,4 +399,19 @@ class Decoder:
 
         return extracted_fields
 
+    @staticmethod
+    def cast_value(value, new_type, error_on_invalid_enum_value: bool):
+        if value is None:
+            return None
+        if isinstance(value, tuple):
+            return tuple(Decoder.cast_value(v, new_type, error_on_invalid_enum_value) for v in value)
 
+        try:
+            casted = new_type(value)
+        except ValueError:
+            if error_on_invalid_enum_value:
+                raise sys.exc_info()[1]
+            else:
+                casted = new_type.Invalid
+
+        return casted

@@ -188,12 +188,12 @@ class ProfileCorrector:
     }
 
     FREE_RANGE_TYPES = (
-        'MessageIndex',
-        'UserLocalId',
-        'FitBaseUnit',
-        'DateTime',
-        'LocalDateTime',
-        'DeviceIndex'
+        'message_index',
+        'user_local_id',
+        'fit_base_unit',
+        'date_time',
+        'local_date_time',
+        'device_index'
     )
 
     @staticmethod
