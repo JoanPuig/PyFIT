@@ -6,10 +6,12 @@ import importlib
 import keyword
 import datetime
 
-from pathlib import Path
-from typing import Iterable, Optional
+import networkx as nx
 
-from FIT.profile import Profile, MessageScalarFieldProfile
+from pathlib import Path
+from typing import Iterable, Optional, List
+
+from FIT.profile import Profile, MessageScalarFieldProfile, MessageComponentFieldProfile
 from FIT.base_types import BASE_TYPE_NAME_MAP
 
 
@@ -352,12 +354,39 @@ class MessageCodeGenerator(CodeGenerator):
             cw.indent()
             if len(message.fields) > 0:
                 cw.new_line()
-                for field in message.fields:
-                    # TODO: the actual fun part
+                order = MessageCodeGenerator._field_extraction_order(message.fields)
+                for i in order:
+                    field = message.fields[i]
                     if field.number is not None:
                         cw.write(f'{field.name} = extracted_fields[{field.number}]')
                     else:
                         cw.write(f'{field.name} = None')
+                        reinterpreted_field_name = None
+                        for j in range(i, 0, -1):
+                            if message.fields[j].number is not None:
+                                reinterpreted_field_name = message.fields[j].name
+                                break
+
+                        for matcher in field.dynamic_field_matchers:
+                            ref_field_value = matcher.ref_field_value
+                            ref_field_profile = [field for field in message.fields if field.name == matcher.ref_field_name][0]
+                            rftn = CodeGenerator._capitalize_type_name(ref_field_profile.type)
+                            if ref_field_profile.type in BASE_TYPE_NAME_MAP.keys():
+                                if isinstance(ref_field_value, str):
+                                    val = f'FIT.base_types.{rftn}(\'{ref_field_value}\')'
+                                else:
+                                    val = f'FIT.base_types.{rftn}({ref_field_value})'
+                            else:
+                                if isinstance(ref_field_value, str):
+                                    val = f'FIT.types.{rftn}.{CodeGenerator._capitalize_type_name(ref_field_value)}'
+                                else:
+                                    val = f'FIT.types.{rftn}({ref_field_value})'
+
+                            cw.write(f'if {matcher.ref_field_name} == {val}:')
+                            cw.indent()
+                            cw.write(f'{field.name} = FIT.types.{CodeGenerator._capitalize_type_name(field.type)}({reinterpreted_field_name})')
+                            cw.unindent()
+                            # TODO components
 
             common_fields = ['developer_fields', 'undocumented_fields']
             cw.new_line()
@@ -365,6 +394,43 @@ class MessageCodeGenerator(CodeGenerator):
             cw.new_line(2)
             cw.unindent()
             cw.unindent()
+
+    @staticmethod
+    def _field_extraction_order(fields) -> List[int]:
+        dependencies = nx.nx.DiGraph()
+        field_name_to_index_map = {field.name: index for index, field in enumerate(fields)}
+        dependencies.add_nodes_from(field_name_to_index_map.keys())
+        for i in range(0, len(fields)):
+            field = fields[i]
+            if len(field.dynamic_field_matchers):
+                reinterpreted_field_name = None
+                for j in range(i, 0, -1):
+                    if fields[j].number is not None:
+                        reinterpreted_field_name = fields[j].name
+                        break
+                for matcher in field.dynamic_field_matchers:
+                    dependencies.add_edge(field.name, reinterpreted_field_name)
+                    dependencies.add_edge(field.name, matcher.ref_field_name)
+            if isinstance(field, MessageComponentFieldProfile):
+                for component in field.components:
+                    dependencies.add_edge(component.destination_field, field.name)
+        cycles = ['->'.join(cycle) for cycle in nx.simple_cycles(dependencies)]
+
+        # nx.draw(dependencies, with_labels=True)
+
+        if len(cycles) > 0:
+            raise CodeGeneratorError(f'The fields have the following circular dependencies: {", ".join(cycles)}')
+
+        order = []
+        while len(order) < len(fields):
+            for node in dependencies.nodes:
+                if node not in order:
+                    node_dependencies = list(dependencies.successors(node))
+                    if all([node_dependency in order for node_dependency in node_dependencies]):
+                        order.append(node)
+                        break
+
+        return list([field_name_to_index_map[field] for field in order])
 
     @staticmethod
     def generate(profile: Profile, output_file: Optional[str] = None, **kwargs) -> str:
