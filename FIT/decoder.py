@@ -4,7 +4,7 @@
 
 import importlib
 import warnings
-from typing import Dict, Union, Optional, Tuple
+from typing import Dict, Union, Optional, Tuple, Any
 from enum import Enum
 
 import FIT
@@ -299,7 +299,7 @@ class Decoder:
         try:
             from FIT.types import MesgNum
         except ModuleNotFoundError:
-            raise FITGeneratedCodeNotFoundError('Unable to load FIT.types, make sure you have executed the code generation first')
+            raise FITGeneratedCodeNotFoundError('Unable to load FIT.types, make sure you have generated the code first')
 
         messages = []
         definitions = {}
@@ -351,7 +351,8 @@ class Decoder:
                 developer_fields = Decoder.extract_developer_fields(record, message_definition, error_on_invalid_enum_value)
                 expected_field_numbers = message_class.expected_field_numbers()
                 undocumented_fields = Decoder.extract_undocumented_fields(record.content, message_definition, expected_field_numbers, error_on_invalid_enum_value)
-                message = message_class.from_extracted_fields({}, developer_fields, undocumented_fields, error_on_invalid_enum_value)
+                fields = Decoder.extract_fields(record.content, message_definition, expected_field_numbers)
+                message = message_class.from_extracted_fields(fields, developer_fields, undocumented_fields, error_on_invalid_enum_value)
 
                 for undocumented_field in message.undocumented_fields:
                     error_message = f'{class_name} message has undocumented field number {undocumented_field.definition.number}'
@@ -386,28 +387,15 @@ class Decoder:
         return tuple(undocumented)
 
     @staticmethod
-    def extract_value(message_name: str, field_name: str, number: UnsignedInt8, field_map: Dict[UnsignedInt8, Tuple[int, FieldDefinition]], fields: Tuple[RecordField], field_type, error_on_invalid_enum_value: bool = True):
-        if number:
-            if number in field_map:
-                index, definition = field_map[number]
-                value = fields[index].value
-                if not field_type:
-                    return value
-                if issubclass(field_type, Enum):
-                    if value in field_type._value2member_map_:
-                        return field_type(value)
-                    else:
-                        error_message = f'Field "{field_name}" of type "{field_type.__name__}" in message "{message_name, value}" has unrecognized value "{value}"'
-                        if error_on_invalid_enum_value:
-                            raise FITFileContentError(error_message)
-                        else:
-                            warnings.warn(error_message, FITFileContentWarning)
-                else:
-                    if issubclass(field_type, BASE_TYPE_NUMBER_TO_CLASS[definition.base_type]):
-                        return field_type(value)
-                    else:
-                        raise FITFileContentError(f'Field "{field_name}" of type "{field_type.__name__}" in message "{message_name}" has been decoded with an incompatible type "{value.__class__.__name__}"')
+    def extract_fields(content: MessageContent, definition: MessageDefinition, expected_field_numbers: Tuple[int]) -> Dict[UnsignedInt8, Any]:
+        extracted_fields = {}
+        field_number_to_index_map = definition.mapped_field_definitions()
+        for field_number in expected_field_numbers:
+            if field_number in field_number_to_index_map:
+                extracted_fields[field_number] = content.fields[field_number_to_index_map[field_number][0]].value
             else:
-                return None
-        else:
-            return None
+                extracted_fields[field_number] = None
+
+        return extracted_fields
+
+
