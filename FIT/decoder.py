@@ -5,10 +5,8 @@
 import importlib
 import warnings
 from typing import Dict, Union, Optional, Tuple, Any
-from enum import Enum
 import sys
 
-import FIT
 from FIT.base_types import UnsignedInt8, UnsignedInt16, UnsignedInt32, UnsignedInt64, BASE_TYPE_NUMBER_TO_CLASS
 from FIT.model import MessageDefinition, File, FileHeader, Record, NormalRecordHeader, CompressedTimestampRecordHeader, FieldDefinition, Architecture, RecordField, MessageContent, Message, UndocumentedMessage, ManufacturerSpecificMessage, \
     UndocumentedMessageField, DeveloperMessageField
@@ -416,3 +414,4 @@ class Decoder:
                 casted = new_type.Invalid
 
         return casted
+
