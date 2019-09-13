@@ -1,5 +1,7 @@
 # Copyright 2019 Joan Puig
 # See LICENSE for details
+
+
 import functools
 import zipfile
 import hashlib
@@ -10,6 +12,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Union, Tuple, List, Set, Iterable, Optional
 from FIT.base_types import BASE_TYPE_NAME_MAP
+
 
 """
 This file provides all the classes and functions related to the loading and parsing of the profile data

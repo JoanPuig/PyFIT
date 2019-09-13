@@ -1,5 +1,8 @@
 # To Do
 
+### Profile ###
+* Add resolved type names to simplify code generation
+
 ### Record decoder ###
 * endianness
 * timestamp to_datetime
