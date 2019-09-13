@@ -122,6 +122,17 @@ class Message:
     developer_fields: Tuple[DeveloperMessageField]
     undocumented_fields: Tuple[UndocumentedMessageField]
 
+    def compact_str(self):
+        field_strs = []
+        for k in self.__dict__.keys():
+            field_val = self.__dict__[k]
+            if field_val is not None:
+                if isinstance(field_val, tuple):
+                    if len(field_val) == 0:
+                        break
+            field_strs.append(k + '=' + str(field_val))
+        return f'{type(self).__name__}({", ".join(field_strs)})'
+
 
 @dataclass(frozen=True)
 class ManufacturerSpecificMessage(Message):

@@ -8,6 +8,8 @@
 ### Message decoder ###
 * component field
 * accumulated field
+* Pass in last decoded of a given type 
+* Pass in relevant developer field definition messages
 
 ### Activities ###
 * running indoor
@@ -25,3 +27,6 @@
 * base types
 * decoder
 * model
+
+### Other ###
+* Compact object to string

@@ -13,7 +13,7 @@ def main():
 
     messages = Decoder.decode_fit_messages(file_name)
 
-    print(messages)
+    print(messages[0].compact_str())
 
 
 if __name__ == "__main__":

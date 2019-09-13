@@ -389,6 +389,7 @@ class Decoder:
 
     @staticmethod
     def extract_fields(content: MessageContent, definition: MessageDefinition, expected_field_numbers: Tuple[int]) -> Dict[UnsignedInt8, Any]:
+        # TODO compressed timestamp
         extracted_fields = {}
         field_number_to_index_map = definition.mapped_field_definitions()
         for field_number in expected_field_numbers:
