@@ -25,5 +25,7 @@ setup(
         'pytest',
         'numpy',
         'xlrd',
+        'pandas',
+        'networkx'
     ]
 )
