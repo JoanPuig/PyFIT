@@ -13,7 +13,8 @@ def main():
 
     messages = Decoder.decode_fit_messages(file_name)
 
-    print(messages[0].compact_str())
+    for message in messages:
+        print(message._xstr_())
 
 
 if __name__ == "__main__":

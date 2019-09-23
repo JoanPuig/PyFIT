@@ -122,16 +122,35 @@ class Message:
     developer_fields: Tuple[DeveloperMessageField]
     undocumented_fields: Tuple[UndocumentedMessageField]
 
-    def compact_str(self):
+    def _xstr_(self):
+        last_fields = ['developer_fields', 'undocumented_fields']
+        new_last_fields = []
+        fields = list(self.__dataclass_fields__.keys())
+        for last_field in last_fields:
+            if last_field in fields:
+                fields.remove(last_field)
+                new_last_fields.append(last_field)
+
         field_strs = []
-        for k in self.__dict__.keys():
+        for k in fields:
             field_val = self.__dict__[k]
             if field_val is not None:
                 if isinstance(field_val, tuple):
                     if len(field_val) == 0:
-                        break
-            field_strs.append(k + '=' + str(field_val))
-        return f'{type(self).__name__}({", ".join(field_strs)})'
+                        continue
+                field_strs.append(k + '=' + str(field_val))
+        fields_str = ", ".join(field_strs)
+        if self.undocumented_fields is not None and len(self.undocumented_fields) > 0:
+            undocumented_field_strs = ''
+            undocumented_fields_str = f'undocumented_fields=[{", ".join([undocumented_field_str for undocumented_field_str in undocumented_field_strs])}]'
+            if len(fields_str) >= 0:
+                fields_str = fields_str + undocumented_fields_str
+            else:
+                fields_str = undocumented_fields_str
+
+
+
+        return f'{type(self).__name__}({fields_str})'
 
 
 @dataclass(frozen=True)
